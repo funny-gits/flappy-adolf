@@ -170,11 +170,8 @@ let C_BLOOD_RED; // New
 let C_BANNER_BG_RED, C_BANNER_SYMBOL_BLACK, C_BANNER_CIRCLE_WHITE; // New for banner
 
 // Global function for drawing faux banner
-// Some call sites only pass (x,y,w,h). Default to banner palette to avoid p5 color errors.
-function drawFauxBanner(x, y, w, h, fillCol = C_BANNER_BG_RED, strokeCol = C_BANNER_SYMBOL_BLACK) {
-  const fc = fillCol ?? C_BANNER_BG_RED;
-  const sc = strokeCol ?? C_BANNER_SYMBOL_BLACK;
-  Utils.drawFauxBanner(x, y, w, h, fc, sc);
+function drawFauxBanner(x, y, w, h, fillCol, strokeCol) {
+  Utils.drawFauxBanner(x, y, w, h, fillCol, strokeCol);
 }
 
 
@@ -276,172 +273,428 @@ class BackgroundElement {
         this.y = y;
         this.w = w;
         this.h = h;
-        this.type = type; 
+        this.type = type;
         this.speedFactor = speedFactor;
         this.color1 = color1;
         this.color2 = color2 || color1;
-        this.noiseOffsetX = random(1000); 
-        this.noiseOffsetY = random(1000);
-        this.bannerSeed = random(100); 
 
-        this.wreckRotation = random(-0.15, 0.15); 
-        this.emberTime = 0; 
+        this._regen(); // precompute stable procedural detail (no per-frame random)
+    }
+
+    _regen() {
+        // Stable RNG per element instance. Re-generated when element loops to the right.
+        this.seed = floor(random(1e9));
+        this.rng = Utils.makeRng(this.seed);
+
+        this.noiseOffsetX = this.rng.range(0, 1000);
+        this.noiseOffsetY = this.rng.range(0, 1000);
+
+        // reset size/position by type
+        if (this.type === 'building') {
+            this.h = this.rng.range(SCREEN_HEIGHT * 0.42, SCREEN_HEIGHT * 0.72);
+            this.y = SCREEN_HEIGHT - GROUND_Y_OFFSET - this.h;
+            this.w = this.rng.range(90, 170);
+        } else if (this.type === 'pillar') {
+            this.h = this.rng.range(SCREEN_HEIGHT * 0.28, SCREEN_HEIGHT * 0.58);
+            this.y = SCREEN_HEIGHT - GROUND_Y_OFFSET - this.h;
+            this.w = this.rng.range(28, 58);
+        } else if (this.type === 'rubble') {
+            this.h = this.rng.range(18, 55);
+            this.y = SCREEN_HEIGHT - GROUND_Y_OFFSET - this.h;
+            this.w = this.rng.range(45, 110);
+        } else if (this.type === 'static_wreck') {
+            this.w = this.rng.range(70, 115);
+            this.h = this.rng.range(35, 60);
+            this.y = SCREEN_HEIGHT - GROUND_Y_OFFSET - this.h + this.rng.range(0, 10);
+            this.wreckRotation = this.rng.range(-0.12, 0.12);
+        } else if (this.type === 'banner_pole') {
+            this.h = this.rng.range(90, 170);
+            this.y = SCREEN_HEIGHT - GROUND_Y_OFFSET - this.h;
+            this.w = this.rng.range(10, 14);
+        }
+
+        // Precompute “model” details per type (no flicker)
+        if (this.type === 'building') this._genBuilding();
+        else if (this.type === 'pillar') this._genPillar();
+        else if (this.type === 'rubble') this._genRubble();
+        else if (this.type === 'static_wreck') this._genWreck();
+        else if (this.type === 'banner_pole') this._genBannerPole();
+    }
+
+    _genBuilding() {
+        // Roofline (slightly jagged, but stable)
+        const pts = 12;
+        this.roof = [];
+        let last = 0;
+        for (let i = 0; i < pts; i++) {
+            const raw = this.rng.range(0.02, 0.18);
+            last = last * 0.55 + raw * 0.45;
+            this.roof.push(last);
+        }
+
+        // Windows grid
+        this.windowCols = Math.max(3, Math.floor(this.w / 18));
+        this.windowRows = Math.max(4, Math.floor(this.h / 22));
+        this.windows = [];
+        for (let r = 0; r < this.windowRows; r++) {
+            for (let c = 0; c < this.windowCols; c++) {
+                // fewer lit windows in far layer; we use noise of seed
+                const lit = this.rng.float() < 0.12;
+                const broken = this.rng.float() < 0.08;
+                this.windows.push({ r, c, lit, broken });
+            }
+        }
+
+        // Damage “patches” and cracks
+        const patchCount = this.rng.int(2, 5);
+        this.damagePatches = [];
+        for (let i = 0; i < patchCount; i++) {
+            const px = this.rng.range(this.w * 0.08, this.w * 0.78);
+            const py = this.rng.range(this.h * 0.10, this.h * 0.78);
+            const pw = this.rng.range(this.w * 0.14, this.w * 0.30);
+            const ph = this.rng.range(this.h * 0.10, this.h * 0.22);
+
+            const cracks = [];
+            const crackCount = this.rng.int(1, 3);
+            for (let k = 0; k < crackCount; k++) {
+                const x1 = px + this.rng.range(0.1, 0.4) * pw;
+                const y1 = py + this.rng.range(0.1, 0.4) * ph;
+                const x2 = px + this.rng.range(0.6, 0.9) * pw;
+                const y2 = py + this.rng.range(0.6, 0.9) * ph;
+                cracks.push({ x1, y1, x2, y2 });
+            }
+            this.damagePatches.push({ px, py, pw, ph, cracks });
+        }
+
+        // Optional banner attached to building
+        this.hasBanner = this.rng.float() < 0.25;
+        if (this.hasBanner) {
+            this.bannerW = this.w * this.rng.range(0.20, 0.28);
+            this.bannerH = this.h * this.rng.range(0.28, 0.40);
+            this.bannerX = this.w * this.rng.range(0.10, 0.65);
+            this.bannerY = this.h * this.rng.range(0.20, 0.45);
+            this.bannerWavePhase = this.rng.range(0, Math.PI * 2);
+        }
+
+        // Fire glow (not flashing: smooth noise only)
+        this.hasFireGlow = this.rng.float() < 0.35;
+        this.fireX = this.w * this.rng.range(0.25, 0.75);
+        this.fireY = -this.rng.range(6, 26);
+        this.fireScale = this.rng.range(0.85, 1.25);
+
+        // Antenna / rooftop detail
+        this.hasAntenna = this.rng.float() < 0.35;
+        this.antennaX = this.w * this.rng.range(0.15, 0.85);
+        this.antennaH = this.h * this.rng.range(0.06, 0.12);
+    }
+
+    _genPillar() {
+        this.rivetCount = this.rng.int(3, 6);
+        this.rivets = [];
+        for (let i = 0; i < this.rivetCount; i++) {
+            this.rivets.push({
+                x: this.rng.range(this.w * 0.2, this.w * 0.8),
+                y: this.rng.range(this.h * 0.08, this.h * 0.92),
+                r: this.rng.range(1.2, 2.2),
+            });
+        }
+
+        const crackCount = this.rng.int(1, 3);
+        this.cracks = [];
+        for (let i = 0; i < crackCount; i++) {
+            const x = this.rng.range(this.w * 0.25, this.w * 0.75);
+            const y1 = this.rng.range(this.h * 0.12, this.h * 0.35);
+            const y2 = this.rng.range(this.h * 0.55, this.h * 0.92);
+            this.cracks.push({ x, y1, y2 });
+        }
+
+        this.hasSmoke = this.rng.float() < 0.35;
+        this.smokePhase = this.rng.range(0, Math.PI * 2);
+    }
+
+    _genRubble() {
+        // stable rubble polygon
+        const n = this.rng.int(5, 7);
+        this.poly = [];
+        for (let i = 0; i < n; i++) {
+            const t = i / (n - 1);
+            const px = t * this.w + this.rng.range(-6, 6);
+            const py = this.h - this.rng.range(0, this.h * (0.55 + 0.2 * Math.sin(t * Math.PI)));
+            this.poly.push({ x: px, y: py });
+        }
+        // close to bottom corners
+        this.poly[0] = { x: this.rng.range(-6, 6), y: this.h + this.rng.range(-3, 3) };
+        this.poly[this.poly.length - 1] = { x: this.w + this.rng.range(-6, 6), y: this.h + this.rng.range(-3, 3) };
+
+        // debris bits
+        const debrisN = this.rng.int(6, 12);
+        this.debris = [];
+        for (let i = 0; i < debrisN; i++) {
+            this.debris.push({
+                x: this.rng.range(0.05, 0.95) * this.w,
+                y: this.rng.range(0.45, 0.95) * this.h,
+                w: this.rng.range(3, 8),
+                h: this.rng.range(2, 6),
+            });
+        }
+
+        this.hasEmbers = this.rng.float() < 0.25;
+        this.emberPhase = this.rng.range(0, Math.PI * 2);
+    }
+
+    _genWreck() {
+        // a destroyed “vehicle hull” silhouette (fictional)
+        this.wreckPoly = [];
+        const n = this.rng.int(6, 8);
+        for (let i = 0; i < n; i++) {
+            const t = i / (n - 1);
+            const px = t * this.w + this.rng.range(-5, 5);
+            const py = this.h * (0.55 + this.rng.range(-0.1, 0.2)) + this.rng.range(-6, 6);
+            this.wreckPoly.push({ x: px, y: py });
+        }
+        this.wreckPoly[0] = { x: this.rng.range(-6, 6), y: this.h + this.rng.range(-3, 3) };
+        this.wreckPoly[this.wreckPoly.length - 1] = { x: this.w + this.rng.range(-6, 6), y: this.h + this.rng.range(-3, 3) };
+
+        // holes/vents
+        this.holes = [];
+        const holes = this.rng.int(2, 4);
+        for (let i = 0; i < holes; i++) {
+            this.holes.push({
+                x: this.rng.range(this.w * 0.2, this.w * 0.8),
+                y: this.rng.range(this.h * 0.35, this.h * 0.75),
+                r: this.rng.range(3, 7),
+            });
+        }
+    }
+
+    _genBannerPole() {
+        this.bannerW = this.rng.range(38, 55);
+        this.bannerH = this.rng.range(55, 80);
+        this.bannerOffsetY = this.rng.range(18, this.h * 0.35);
+        this.bannerPhase = this.rng.range(0, Math.PI * 2);
+        this.ropeNubs = [];
+        for (let i = 0; i < 3; i++) {
+            this.ropeNubs.push({
+                y: this.bannerOffsetY + i * (this.bannerH / 2),
+                r: this.rng.range(1.4, 2.2),
+            });
+        }
     }
 
     update() {
         this.x -= gameSpeed * this.speedFactor * (deltaTime / (1000 / 60));
 
-        if (this.x + this.w < -100) { 
-            this.x = SCREEN_WIDTH + random(100, 300); 
-            this.bannerSeed = random(100); 
-            this.noiseOffsetX = random(1000); 
-            this.noiseOffsetY = random(1000);
-
-            if (this.type === 'building') {
-                this.h = random(SCREEN_HEIGHT * 0.4, SCREEN_HEIGHT * 0.7); // Tighter range
-                this.y = SCREEN_HEIGHT - GROUND_Y_OFFSET - this.h;
-                this.w = random(80, 160); // Tighter range
-            } else if (this.type === 'pillar') {
-                this.h = random(SCREEN_HEIGHT * 0.25, SCREEN_HEIGHT * 0.55);
-                this.y = SCREEN_HEIGHT - GROUND_Y_OFFSET - this.h;
-                this.w = random(25, 55);
-            } else if (this.type === 'rubble') {
-                this.h = random(15, 45); 
-                this.y = SCREEN_HEIGHT - GROUND_Y_OFFSET - this.h; 
-                this.w = random(40, 90);
-            } else if (this.type === 'static_wreck') { 
-                this.w = random(70, 110);
-                this.h = random(35, 55);
-                this.y = SCREEN_HEIGHT - GROUND_Y_OFFSET - this.h + random(0,10); 
-                this.wreckRotation = random(-0.1, 0.1); 
-            } else if (this.type === 'banner_pole') { 
-                this.w = random(40, 60); 
-                this.h = random(60, 100); 
-                this.y = random(SCREEN_HEIGHT * 0.1, SCREEN_HEIGHT * 0.3); 
-            }
+        if (this.x + this.w < -120) {
+            this.x = SCREEN_WIDTH + this.rng.range(100, 320);
+            this._regen();
         }
     }
 
     show() {
         noStroke();
+
         if (this.type === 'building') {
-            fill(this.color1); 
+            // Building base with subtle vertical shading
+            fill(this.color1);
             rect(this.x, this.y, this.w, this.h);
 
-            fill(this.color1); 
+            // Shadow edge
+            fill(0, 0, 0, 30);
+            rect(this.x + this.w * 0.72, this.y, this.w * 0.28, this.h);
+
+            // Roofline profile (stable)
+            fill(this.color1);
             beginShape();
             vertex(this.x, this.y);
-            for (let i = 0; i <= 10; i++) {
-                let stepX = this.x + (this.w / 10) * i;
-                let stepY = this.y - noise(this.noiseOffsetX + i * 0.3) * this.h * 0.18; 
+            for (let i = 0; i < this.roof.length; i++) {
+                const stepX = this.x + (this.w / (this.roof.length - 1)) * i;
+                const stepY = this.y - this.roof[i] * this.h;
                 vertex(stepX, stepY);
             }
             vertex(this.x + this.w, this.y);
-            vertex(this.x + this.w, this.y + random(5,15)); 
-            vertex(this.x, this.y + random(5,15));
             endShape(CLOSE);
 
-            fill(this.color2); 
-            for (let i = 0; i < random(2, 6); i++) { 
-                let spotX = this.x + random(this.w * 0.1, this.w * 0.8);
-                let spotY = this.y + random(this.h * 0.1, this.h * 0.8);
-                let spotW = random(this.w * 0.15, this.w * 0.35); 
-                let spotH = random(this.h * 0.1, this.h * 0.25);
-                rect(spotX, spotY, spotW, spotH); 
-                
-                stroke(C_PILLAR_DARK); 
-                strokeWeight(random(1,2));
-                if(random() < 0.6) line(spotX + random(spotW*0.2), spotY + random(spotH*0.2), spotX + spotW - random(spotW*0.2), spotY + spotH - random(spotH*0.2));
-                if(random() < 0.4) line(spotX + spotW - random(spotW*0.2), spotY + random(spotH*0.2), spotX + random(spotW*0.2), spotY + spotH - random(spotH*0.2));
-                noStroke();
-            }
-            
-            if (noise(this.noiseOffsetX + 100) < 0.4) { 
-                let glowX = this.x + this.w / 2;
-                let glowY = this.y - random(5,25); 
-                let flicker = noise(this.noiseOffsetY + frameCount * 0.05);
-                fill(C_FIRE_GLOW_STRONG.levels[0], C_FIRE_GLOW_STRONG.levels[1], C_FIRE_GLOW_STRONG.levels[2], 30 + flicker * 80);
-                ellipse(glowX, glowY, this.w * (0.4 + flicker * 0.25), this.h * (0.15 + flicker * 0.15));
-            }
+            // Windows
+            const padX = this.w * 0.10;
+            const padY = this.h * 0.12;
+            const cellW = (this.w - padX * 2) / this.windowCols;
+            const cellH = (this.h - padY * 1.2) / this.windowRows;
 
-            if (noise(this.bannerSeed) < 0.3) { 
-                let bannerW = this.w * 0.25; 
-                let bannerH = this.h * 0.4;  
-                let bannerX = this.x + this.w * 0.1 + noise(this.bannerSeed + 10) * (this.w * 0.5 - bannerW); 
-                let bannerY = this.y + this.h * 0.1 + noise(this.bannerSeed + 20) * (this.h * 0.4 - bannerH); 
-                
-                bannerW = max(20, bannerW); 
-                bannerH = max(30, bannerH);
+            for (const w of this.windows) {
+                const wx = this.x + padX + w.c * cellW + cellW * 0.2;
+                const wy = this.y + padY + w.r * cellH + cellH * 0.18;
+                const ww = cellW * 0.55;
+                const wh = cellH * 0.55;
 
-                drawFauxBanner(bannerX, bannerY, bannerW, bannerH);
-            }
-
-        } else if (this.type === 'pillar') {
-            fill(this.color1);
-            rect(this.x, this.y, this.w, this.h, 2);
-            fill(this.color2);
-            stroke(this.color2);
-            strokeWeight(1.5);
-            line(this.x + this.w * 0.3, this.y + this.h * 0.2, this.x + this.w * 0.7, this.y + this.h * 0.4);
-            line(this.x + this.w * 0.2, this.y + this.h * 0.8, this.x + this.w * 0.8, this.y + this.h * 0.7);
-            noStroke();
-            for (let i = 0; i < random(1, 3); i++) {
-                rect(this.x, this.y + this.h * (0.2 + i * 0.25), this.w, random(3, 6), 1);
-            }
-        } else if (this.type === 'rubble') {
-            fill(this.color1); 
-            for(let i=0; i< random(2,4); i++){ 
-                beginShape();
-                vertex(this.x + random(-5,5), this.y + this.h + random(-3,3));
-                vertex(this.x + this.w * 0.2 + random(-5,5), this.y + random(-5,5) + this.h*0.5);
-                vertex(this.x + this.w * 0.5 + random(-5,5), this.y + random(-5,5));
-                vertex(this.x + this.w * 0.8 + random(-5,5), this.y + random(-5,5) + this.h*0.5);
-                vertex(this.x + this.w + random(-5,5), this.y + this.h + random(-3,3));
-                endShape(CLOSE);
-            }
-            fill(this.color2); 
-             for(let i=0; i<random(1,3); i++){
-                rect(this.x + random(this.w*0.1, this.w*0.3), this.y + random(this.h*0.3, this.h*0.5), random(this.w*0.2, this.w*0.5), random(this.h*0.2, this.h*0.4), 1);
-            }
-            if (noise(this.noiseOffsetX + frameCount * 0.02) < 0.3) {
-                fill(C_SMOKE_EFFECT.levels[0], C_SMOKE_EFFECT.levels[1], C_SMOKE_EFFECT.levels[2], 20 + noise(this.noiseOffsetY + frameCount * 0.03) * 30);
-                ellipse(this.x + this.w/2 + random(-5,5), this.y - random(5,10), random(10,20), random(15,25));
-            }
-            this.emberTime += deltaTime;
-            if (this.emberTime > 100) { 
-                this.emberTime = 0;
-                if (random() < 0.2) { 
-                    let emberX = this.x + random(this.w);
-                    let emberY = this.y + random(this.h * 0.5, this.h); 
-                    let emberSize = random(2, 5);
-                    let emberAlpha = 100 + noise(this.noiseOffsetX + frameCount * 0.1) * 155;
-                    fill(C_PARTICLE_EMBER.levels[0], C_PARTICLE_EMBER.levels[1], C_PARTICLE_EMBER.levels[2], emberAlpha);
-                    ellipse(emberX, emberY, emberSize, emberSize);
+                if (w.broken) {
+                    fill(0, 0, 0, 110);
+                    rect(wx, wy, ww, wh, 1);
+                    stroke(255, 255, 255, 30);
+                    strokeWeight(1);
+                    line(wx, wy, wx + ww, wy + wh);
+                    line(wx + ww, wy, wx, wy + wh);
+                    noStroke();
+                } else if (w.lit) {
+                    fill(255, 200, 120, 110);
+                    rect(wx, wy, ww, wh, 1);
+                } else {
+                    fill(0, 0, 0, 70);
+                    rect(wx, wy, ww, wh, 1);
                 }
             }
 
-        } else if (this.type === 'static_wreck') { 
-            push();
-            translate(this.x + this.w / 2, this.y + this.h / 2);
-            rotate(this.wreckRotation);
-            let tankColor = random() < 0.5 ? C_ENEMY_DRONE : C_BOSS_TANK; 
-            fill(tankColor);
+            // Damage patches
+            for (const p of this.damagePatches) {
+                fill(0, 0, 0, 45);
+                rect(this.x + p.px, this.y + p.py, p.pw, p.ph, 2);
+                stroke(255, 255, 255, 35);
+                strokeWeight(1.2);
+                for (const c of p.cracks) {
+                    line(this.x + c.x1, this.y + c.y1, this.x + c.x2, this.y + c.y2);
+                }
+                noStroke();
+            }
+
+            // Rooftop antenna
+            if (this.hasAntenna) {
+                stroke(0, 0, 0, 70);
+                strokeWeight(2);
+                const ax = this.x + this.antennaX;
+                line(ax, this.y - this.h * 0.10, ax, this.y - this.h * 0.10 - this.antennaH);
+                strokeWeight(1);
+                line(ax - 6, this.y - this.h * 0.10 - this.antennaH, ax + 6, this.y - this.h * 0.10 - this.antennaH);
+                noStroke();
+            }
+
+            // Fire glow (smooth, not flashing)
+            if (this.hasFireGlow) {
+                const t = frameCount * 0.02;
+                const flick = noise(this.noiseOffsetY + t);
+                const gx = this.x + this.fireX;
+                const gy = this.y + this.fireY;
+                const a = 30 + flick * 90;
+                fill(C_FIRE_GLOW_STRONG.levels[0], C_FIRE_GLOW_STRONG.levels[1], C_FIRE_GLOW_STRONG.levels[2], a);
+                ellipse(gx, gy, this.w * (0.30 + flick * 0.25) * this.fireScale, this.h * (0.10 + flick * 0.12) * this.fireScale);
+
+                // inner hot core
+                fill(C_FIRE_GLOW_WEAK.levels[0], C_FIRE_GLOW_WEAK.levels[1], C_FIRE_GLOW_WEAK.levels[2], 20 + flick * 60);
+                ellipse(gx, gy + 2, this.w * (0.18 + flick * 0.15) * this.fireScale, this.h * (0.06 + flick * 0.08) * this.fireScale);
+            }
+
+            // Banner (fictional emblem), slightly wavy but stable
+            if (this.hasBanner) {
+                const wave = Math.sin(frameCount * 0.03 + this.bannerWavePhase) * 2.0;
+                push();
+                translate(this.x + this.bannerX, this.y + this.bannerY);
+                // cloth warp illusion
+                drawFauxBanner(0, wave, this.bannerW, this.bannerH, C_BANNER_BG_RED, C_BANNER_SYMBOL_BLACK);
+                pop();
+            }
+
+        } else if (this.type === 'pillar') {
+            // Pillar base
+            fill(C_PILLAR_DARK);
+            rect(this.x, this.y, this.w, this.h, 3);
+            // highlight strip
+            fill(C_PILLAR_LIGHT);
+            rect(this.x + this.w * 0.18, this.y + 2, this.w * 0.14, this.h - 4, 2);
+
+            // cracks (stable)
+            stroke(0, 0, 0, 50);
+            strokeWeight(1.2);
+            for (const c of this.cracks) {
+                line(this.x + c.x, this.y + c.y1, this.x + c.x + 3, this.y + c.y2);
+            }
             noStroke();
 
-            rect(-this.w / 2, -this.h / 2 + this.h * 0.1, this.w, this.h * 0.7, 2); 
-            rect(-this.w * 0.25, -this.h / 2 - this.h * 0.2, this.w * 0.5, this.h * 0.4, 1); 
-            rect(0, -this.h / 2 - this.h * 0.1, this.w * 0.55, this.h * 0.15, 1); 
-            
-            fill(lerpColor(tankColor, color(0), 0.3)); 
-            rect(-this.w/2, this.h/2 - this.h*0.2, this.w, this.h*0.25, 2); 
-            for(let i = -this.w/2 + this.w*0.1; i < this.w/2 - this.w*0.1; i += this.w*0.25){
-                 ellipse(i, this.h/2 - this.h*0.075, this.w*0.15, this.w*0.15);
+            // rivets
+            fill(0, 0, 0, 40);
+            for (const r of this.rivets) {
+                ellipse(this.x + r.x, this.y + r.y, r.r * 2);
             }
+
+            // smoke puff (smooth noise)
+            if (this.hasSmoke && noise(this.noiseOffsetX + frameCount * 0.01) < 0.35) {
+                const n = noise(this.noiseOffsetY + frameCount * 0.02);
+                fill(C_SMOKE_EFFECT.levels[0], C_SMOKE_EFFECT.levels[1], C_SMOKE_EFFECT.levels[2], 18 + n * 45);
+                const sx = this.x + this.w * 0.55 + Math.sin(frameCount * 0.02 + this.smokePhase) * 2;
+                const sy = this.y - 10 - n * 12;
+                ellipse(sx, sy, 18 + n * 14, 24 + n * 18);
+            }
+
+        } else if (this.type === 'rubble') {
+            fill(C_RUBBLE_DARK);
+            beginShape();
+            for (const p of this.poly) vertex(this.x + p.x, this.y + p.y);
+            endShape(CLOSE);
+
+            fill(C_RUBBLE_LIGHT);
+            // top highlight (simple)
+            beginShape();
+            vertex(this.x + this.poly[0].x, this.y + this.poly[0].y);
+            for (let i = 1; i < this.poly.length - 1; i++) {
+                vertex(this.x + this.poly[i].x, this.y + this.poly[i].y - 3);
+            }
+            vertex(this.x + this.poly[this.poly.length - 1].x, this.y + this.poly[this.poly.length - 1].y);
+            endShape();
+
+            // debris blocks
+            fill(0, 0, 0, 30);
+            for (const d of this.debris) {
+                rect(this.x + d.x, this.y + d.y, d.w, d.h, 1);
+            }
+
+            // embers (smooth, no flashing)
+            if (this.hasEmbers) {
+                const t = frameCount * 0.03;
+                const a = 60 + noise(this.noiseOffsetX + t) * 120;
+                fill(C_PARTICLE_EMBER.levels[0], C_PARTICLE_EMBER.levels[1], C_PARTICLE_EMBER.levels[2], a);
+                for (let i = 0; i < 3; i++) {
+                    const ex = this.x + this.w * (0.2 + 0.3 * i) + Math.sin(t + this.emberPhase + i) * 2;
+                    const ey = this.y + this.h * (0.45 + 0.12 * i) - noise(this.noiseOffsetY + t + i) * 8;
+                    ellipse(ex, ey, 3, 3);
+                }
+            }
+
+        } else if (this.type === 'static_wreck') {
+            push();
+            translate(this.x, this.y);
+            rotate(this.wreckRotation);
+
+            fill(C_BUILDING_DARK);
+            beginShape();
+            for (const p of this.wreckPoly) vertex(p.x, p.y);
+            endShape(CLOSE);
+
+            fill(C_BUILDING_LIGHT);
+            rect(this.w * 0.10, this.h * 0.55, this.w * 0.80, this.h * 0.15, 2);
+
+            fill(0, 0, 0, 80);
+            for (const h of this.holes) {
+                ellipse(h.x, h.y, h.r * 2);
+            }
+
             pop();
-        } else if (this.type === 'banner_pole') { 
+
+        } else if (this.type === 'banner_pole') {
+            // pole
             fill(C_PILLAR_DARK);
-            rect(this.x - 3, this.y - 10, 6, this.h + 20, 1); 
-            drawFauxBanner(this.x, this.y, this.w, this.h);
+            rect(this.x, this.y, this.w, this.h, 2);
+            fill(C_PILLAR_LIGHT);
+            rect(this.x + this.w * 0.2, this.y + 2, this.w * 0.2, this.h - 4, 2);
+
+            // rope nubs
+            fill(0, 0, 0, 50);
+            for (const n of this.ropeNubs) {
+                ellipse(this.x + this.w * 0.85, this.y + n.y, n.r * 2);
+            }
+
+            // banner (wavy)
+            const wave = Math.sin(frameCount * 0.03 + this.bannerPhase) * 2.2;
+            push();
+            translate(this.x + this.w, this.y + this.bannerOffsetY);
+            drawFauxBanner(4, wave, this.bannerW, this.bannerH, C_BANNER_BG_RED, C_BANNER_SYMBOL_BLACK);
+            pop();
         }
     }
 }
@@ -1164,39 +1417,87 @@ class Obstacle {
     this.y = y;
     this.w = w;
     this.h = h;
-    this.color = C_OBSTACLE; 
-    this.detailColor = lerpColor(this.color, color(0), 0.3); 
+
+    this.color = C_OBSTACLE;
+    this.detailColor = lerpColor(this.color, color(0), 0.3);
+
+    // Precompute stable “concrete” detail so it doesn't flicker.
+    const seed = floor(random(1e9));
+    const rng = Utils.makeRng(seed);
+
+    this.cracks = [
+      {
+        x1: rng.range(this.w * 0.15, this.w * 0.85),
+        y1: 0,
+        x2: rng.range(this.w * 0.15, this.w * 0.85),
+        y2: this.h,
+      },
+      {
+        x1: 0,
+        y1: rng.range(this.h * 0.15, this.h * 0.85),
+        x2: this.w,
+        y2: rng.range(this.h * 0.15, this.h * 0.85),
+      },
+    ];
+
+    this.dents = [];
+    const dentN = rng.int(3, 6);
+    for (let i = 0; i < dentN; i++) {
+      this.dents.push({
+        x: rng.range(2, this.w - 10),
+        y: rng.range(2, this.h - 10),
+        w: rng.range(3, 9),
+        h: rng.range(3, 7),
+        a: rng.range(80, 140),
+      });
+    }
+
+    this.chips = [
+      { x: 0, y: 0, dx: rng.range(6, 14), dy: rng.range(6, 14) },
+      { x: this.w, y: 0, dx: -rng.range(6, 14), dy: rng.range(6, 14) },
+      { x: 0, y: this.h, dx: rng.range(6, 14), dy: -rng.range(6, 14) },
+      { x: this.w, y: this.h, dx: -rng.range(6, 14), dy: -rng.range(6, 14) },
+    ];
   }
+
   update() {
-    this.x -= gameSpeed * (deltaTime / (1000/60)); 
+    this.x -= gameSpeed * (deltaTime / (1000/60));
   }
+
   show() {
+    // Concrete slab
     fill(this.color);
     stroke(this.detailColor);
     strokeWeight(2);
-    rect(this.x, this.y, this.w, this.h, 2); 
-    noStroke();
-    
-    fill(this.detailColor.levels[0], this.detailColor.levels[1], this.detailColor.levels[2], 180); 
-    
+    rect(this.x, this.y, this.w, this.h, 2);
+
+    // Hairline cracks (stable)
     stroke(this.detailColor);
     strokeWeight(1.5);
-    line(this.x + random(this.w * 0.1, this.w * 0.9), this.y, this.x + random(this.w * 0.1, this.w * 0.9), this.y + this.h);
-    line(this.x, this.y + random(this.h * 0.1, this.h * 0.9), this.x + this.w, this.y + random(this.h * 0.1, this.h * 0.9));
+    for (const c of this.cracks) {
+      line(this.x + c.x1, this.y + c.y1, this.x + c.x2, this.y + c.y2);
+    }
     noStroke();
 
-    for (let i = 0; i < random(3, 7); i++) {
-        rect(this.x + random(0, this.w - 5), this.y + random(0, this.h - 5), random(3, 8), random(3, 6), 1);
+    // Dents / pock marks
+    for (const d of this.dents) {
+      fill(this.detailColor.levels[0], this.detailColor.levels[1], this.detailColor.levels[2], d.a);
+      rect(this.x + d.x, this.y + d.y, d.w, d.h, 1);
     }
-    
-    fill(this.color.levels[0] - 10, this.color.levels[1] - 10, this.color.levels[2] - 10); 
-    triangle(this.x, this.y, this.x + random(5, 15), this.y, this.x, this.y + random(5, 15));
-    triangle(this.x + this.w, this.y, this.x + this.w - random(5, 15), this.y, this.x + this.w, this.y + random(5, 15));
-    triangle(this.x, this.y + this.h, this.x + random(5, 15), this.y + this.h, this.x, this.y + this.h - random(5, 15));
-    triangle(this.x + this.w, this.y + this.h, this.x + this.w - random(5, 15), this.y + this.h, this.x + this.w, this.y + this.h - random(5, 15));
+
+    // Edge chips
+    fill(this.color.levels[0] - 10, this.color.levels[1] - 10, this.color.levels[2] - 10);
+    for (const c of this.chips) {
+      triangle(this.x + c.x, this.y + c.y, this.x + c.x + c.dx, this.y + c.y, this.x + c.x, this.y + c.y + c.dy);
+    }
   }
+
   offscreen() {
-    return this.x < -this.w; 
+    return this.x + this.w < 0;
+  }
+
+  hits(playerRect) {
+    return Utils.collideRectRect(this.x, this.y, this.w, this.h, playerRect.x, playerRect.y, playerRect.w, playerRect.h);
   }
 }
 
@@ -1414,42 +1715,123 @@ class Boss {
 
 class BossTank extends Boss {
   constructor() {
-    super( width + 150, SCREEN_HEIGHT - GROUND_Y_OFFSET - 90, 150, 100, null, 100, 2.0, width - 150 - 70, C_BOSS_TANK );
-    this.turretAngle = PI; 
-  }
-  updateActive() {
-    if(player) {
-        this.turretAngle = lerp( this.turretAngle, atan2( (player.y + player.h / 2) - (this.y + 25), (player.x + player.w / 2) - (this.x + this.w / 2 - 30) ), 0.03 * (deltaTime / (1000/60)) ); 
+    super(width + 150, SCREEN_HEIGHT - GROUND_Y_OFFSET - 90, 150, 100, null, 100, 2.0, width - 150 - 70, C_BOSS_TANK);
+    this.turretAngle = PI;
+
+    // Stable model detail (no flicker)
+    const rng = Utils.makeRng(floor(random(1e9)));
+    this.rivet = [];
+    for (let i = 0; i < 12; i++) {
+      this.rivet.push({ x: rng.range(18, this.w - 18), y: rng.range(18, this.h - 34), r: rng.range(1.4, 2.4) });
     }
+    this.panelLines = [];
+    for (let i = 0; i < 4; i++) {
+      this.panelLines.push({ x: rng.range(25, this.w - 25), y1: rng.range(10, this.h - 40), y2: rng.range(this.h - 55, this.h - 40) });
+    }
+
+    this.exhaustX = rng.range(this.w * 0.12, this.w * 0.22);
+    this.exhaustY = rng.range(this.h * 0.40, this.h * 0.55);
+    this.exhaustPhase = rng.range(0, TWO_PI);
+  }
+
+  updateActive() {
+    if (player) {
+      this.turretAngle = lerp(
+        this.turretAngle,
+        atan2((player.y + player.h / 2) - (this.y + 25), (player.x + player.w / 2) - (this.x + this.w / 2 - 30)),
+        0.03 * (deltaTime / (1000 / 60))
+      );
+    }
+
     this.shootTimer -= deltaTime;
     if (this.shootTimer <= 0) {
       for (let i = -1; i <= 1; i++) {
-        enemyProjectiles.push( new EnemyProjectile( this.x + this.w / 2 - 30 + cos(this.turretAngle) * 30, this.y + 25 + sin(this.turretAngle) * 30, this.turretAngle + i * 0.2 ) );
+        enemyProjectiles.push(
+          new EnemyProjectile(
+            this.x + this.w / 2 - 30 + cos(this.turretAngle) * 70,
+            this.y + 25 + sin(this.turretAngle) * 30,
+            this.turretAngle + i * 0.2
+          )
+        );
       }
-      this.shootTimer = (2500 - bossCycle * 100) / (gameSpeed / INITIAL_GAME_SPEED); 
-      this.shootTimer = max(900, this.shootTimer); 
-      this.vy = -5; 
+      this.shootTimer = (2500 - bossCycle * 100) / (gameSpeed / INITIAL_GAME_SPEED);
+      this.shootTimer = max(900, this.shootTimer);
     }
   }
+
   showActive() {
-    strokeWeight(3);
-    stroke(this.detailColor);
-    fill(this.color);
-    rect(this.x, this.y, this.w, this.h, 5); 
-    fill(this.detailColor);
-    rect(this.x, this.y + this.h - 30, this.w, 30, 3); 
-    for (let i = 0; i < this.w; i += 20) { 
-      rect(this.x + i + 2, this.y + this.h - 28, 15, 26, 2);
-    }
-    fill(this.color);
-    ellipse(this.x + this.w / 2 - 30, this.y + 25, 60, 60); 
-    push(); 
-    translate(this.x + this.w / 2 - 30, this.y + 25);
-    rotate(this.turretAngle);
-    fill(this.detailColor);
-    rect(20, -10, 50, 20, 3); 
-    pop();
+    // Body shading
     noStroke();
+    fill(this.color);
+    rect(this.x, this.y + 8, this.w, this.h - 38, 6);
+
+    // Side shadow
+    fill(0, 0, 0, 35);
+    rect(this.x + this.w * 0.70, this.y + 10, this.w * 0.30, this.h - 42, 6);
+
+    // Panels (stable)
+    stroke(0, 0, 0, 55);
+    strokeWeight(1.2);
+    for (const l of this.panelLines) {
+      line(this.x + l.x, this.y + l.y1, this.x + l.x + 6, this.y + l.y2);
+    }
+    noStroke();
+
+    // Rivets (stable)
+    fill(0, 0, 0, 40);
+    for (const r of this.rivet) {
+      ellipse(this.x + r.x, this.y + r.y, r.r * 2);
+    }
+
+    // Tracks
+    const trackY = this.y + this.h - 30;
+    fill(this.detailColor);
+    rect(this.x, trackY, this.w, 30, 4);
+
+    // Animated tread segments (no random; uses frameCount)
+    const treadOffset = (frameCount * (gameSpeed * 0.25)) % 20;
+    fill(0, 0, 0, 35);
+    for (let i = -20; i < this.w + 20; i += 20) {
+      rect(this.x + i + treadOffset + 3, trackY + 2, 14, 26, 3);
+    }
+
+    // Road wheels
+    fill(0, 0, 0, 25);
+    for (let i = 0; i < 5; i++) {
+      const wx = this.x + 22 + i * ((this.w - 44) / 4);
+      ellipse(wx, trackY + 16, 16, 16);
+      fill(255, 255, 255, 18);
+      ellipse(wx - 2, trackY + 14, 6, 6);
+      fill(0, 0, 0, 25);
+    }
+
+    // Turret base
+    fill(this.color);
+    ellipse(this.x + this.w / 2 - 30, this.y + 28, 66, 66);
+    fill(0, 0, 0, 25);
+    ellipse(this.x + this.w / 2 - 22, this.y + 24, 42, 42);
+
+    // Barrel
+    push();
+    translate(this.x + this.w / 2 - 30, this.y + 28);
+    rotate(this.turretAngle);
+
+    fill(this.detailColor);
+    rect(18, -9, 58, 18, 5);
+    fill(0, 0, 0, 35);
+    rect(18, 2, 58, 7, 4);
+
+    // muzzle
+    fill(0, 0, 0, 80);
+    rect(70, -8, 10, 16, 3);
+    pop();
+
+    // Exhaust smoke (smooth)
+    if (noise(this.exhaustPhase + frameCount * 0.01) < 0.45) {
+      const n = noise(this.exhaustPhase + frameCount * 0.02);
+      fill(C_SMOKE_EFFECT.levels[0], C_SMOKE_EFFECT.levels[1], C_SMOKE_EFFECT.levels[2], 14 + n * 40);
+      ellipse(this.x + this.exhaustX, this.y + this.exhaustY - 8 - n * 10, 16 + n * 18, 20 + n * 24);
+    }
   }
 }
 
@@ -1868,41 +2250,77 @@ function activatePowerup(type) {
 }
 
 class Particle {
-  constructor(x, y, color, size, lifetime, velocity, drag, shape = 'ellipse') {
-    this.x = x; this.y = y; this.color = color; this.size = size; this.lifetime = lifetime; 
+  constructor(x, y, colorValue, size, lifetime, velocity, drag, shape = 'ellipse') {
+    this.x = x;
+    this.y = y;
+    this.color = colorValue;
+    this.size = size;
+    this.initialSize = size;
+
+    this.lifetime = lifetime;
+    this.startLifetime = lifetime;
+
+    // Physics
     this.vel = velocity || createVector(random(-1, 1), random(-1, 1));
-    this.acc = createVector(0, 0); this.drag = drag || 1; this.alpha = 255;
-    this.startLifetime = lifetime; this.shape = shape;
-    this.initialSize = size; 
+    this.acc = createVector(0, 0);
+    this.drag = drag || 1;
+
+    this.alpha = 255;
+    this.shape = shape;
+
+    // Stable display parameters (no per-frame random)
+    this.displayColor = Array.isArray(colorValue)
+      ? colorValue[floor(random(colorValue.length))]
+      : colorValue;
+
+    const rng = Utils.makeRng(floor(random(1e9)));
+    this.rectAspect = rng.range(0.65, 1.35);
+    this.rot = rng.range(-0.4, 0.4);
   }
 
-  applyForce(force) { this.acc.add(force); }
+  applyForce(force) {
+    this.acc.add(force);
+  }
 
   update() {
-    this.vel.add(this.acc); 
-    this.vel.mult(this.drag); 
-    this.x += this.vel.x * (deltaTime / (1000/60)); 
-    this.y += this.vel.y * (deltaTime / (1000/60));
-    this.acc.mult(0); 
+    const dt = (deltaTime / (1000/60));
+
+    this.vel.add(this.acc);
+    this.vel.mult(this.drag);
+
+    this.x += this.vel.x * dt;
+    this.y += this.vel.y * dt;
+
+    this.acc.mult(0);
 
     this.lifetime -= deltaTime;
     this.alpha = map(this.lifetime, 0, this.startLifetime, 0, 255);
-    this.size = map(this.lifetime, 0, this.startLifetime, 0, this.initialSize); 
-    if (this.size < 0) this.size = 0; 
+    this.size = map(this.lifetime, 0, this.startLifetime, 0, this.initialSize);
+    if (this.size < 0) this.size = 0;
   }
 
   show() {
     noStroke();
-    let displayColor = this.color;
-    if (Array.isArray(this.color)) displayColor = this.color[floor(random(this.color.length))];
-    
-    if (displayColor && displayColor.levels) { 
-        fill( displayColor.levels[0], displayColor.levels[1], displayColor.levels[2], this.alpha );
-        if (this.shape === 'ellipse') ellipse(this.x, this.y, this.size);
-        else if (this.shape === 'rect') rect(this.x - this.size/2, this.y - this.size/2, this.size, this.size * random(0.5, 1.5), 1);
+    const c = this.displayColor;
+    if (!c || !c.levels) return;
+
+    fill(c.levels[0], c.levels[1], c.levels[2], this.alpha);
+
+    if (this.shape === 'ellipse') {
+      ellipse(this.x, this.y, this.size);
+    } else if (this.shape === 'rect') {
+      push();
+      translate(this.x, this.y);
+      rotate(this.rot);
+      rectMode(CENTER);
+      rect(0, 0, this.size, this.size * this.rectAspect, 1);
+      pop();
     }
   }
-  finished() { return this.lifetime < 0; }
+
+  finished() {
+    return this.lifetime < 0;
+  }
 }
 
 function createExplosion(x, y, count, baseColor, minLifetimeMs, maxLifetimeMs) { 
