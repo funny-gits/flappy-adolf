@@ -18,12 +18,9 @@ export function collideRectCircle(rx, ry, rw, rh, cx, cy, diameter) {
   return (dx * dx + dy * dy) <= (radius * radius);
 }
 
-/**
- * Spawn safety check.
- * candidateRect: {x,y,w,h}
- * existingRects: [{x,y,w,h}, ...]
- */
 export function isClearForSpawn(candidateRect, existingRects, padding = 0) {
+  // candidateRect: {x,y,w,h}
+  // existingRects: array of {x,y,w,h}
   if (!candidateRect || !existingRects || !Array.isArray(existingRects)) return true;
   const cx = candidateRect.x - padding;
   const cy = candidateRect.y - padding;
@@ -37,71 +34,58 @@ export function isClearForSpawn(candidateRect, existingRects, padding = 0) {
   return true;
 }
 
-/**
- * Fictional "unit banner" rendering.
- * Intentionally avoids real-world extremist symbols (including swastikas).
- * Design goals: recognisable, detailed, consistent (no per-frame random).
- */
 export function drawFauxBanner(x, y, w, h, fillCol, strokeCol) {
+  // This intentionally avoids real-world extremist symbols.
+  // It's a stylized, fictional “unit banner” with folds + a neutral emblem.
   const p = globalThis;
   if (!p || typeof p.push !== "function") return;
 
-  // Safe defaults if caller doesn't pass colors
-  const cloth = fillCol ?? p.color(110, 0, 0);
-  const ink = strokeCol ?? p.color(15, 15, 15);
-  const trim = p.color(235, 230, 210, 210);
+  // Defensive defaults: never pass undefined into p5 color APIs.
+  const fallbackFill = (typeof p.color === "function") ? p.color(110, 0, 0) : "#6e0000";
+  const fallbackStroke = (typeof p.color === "function") ? p.color(0) : "#000000";
+  const safeFill = (fillCol == null) ? fallbackFill : fillCol;
+  const safeStroke = (strokeCol == null) ? fallbackStroke : strokeCol;
 
   p.push();
-  p.noStroke();
+  p.stroke(safeStroke);
+  p.strokeWeight(2);
 
-  // Cloth base
-  p.fill(cloth);
+  // Base cloth
+  p.fill(safeFill);
   p.rect(x, y, w, h, 4);
 
-  // Cloth folds (stable "texture" using simple gradients)
-  for (let i = 0; i < 8; i++) {
-    const t = i / 7;
-    const alpha = 18 + Math.floor(22 * Math.sin(t * Math.PI));
-    p.fill(0, 0, 0, alpha);
-    p.rect(x + t * w, y + 1, 1, h - 2);
+  // Folds / texture (stable; no per-frame randomness)
+  p.noStroke();
+  for (let i = 0; i < 6; i++) {
+    const t = i / 5;
+    const xx = x + t * w;
+    const shade = 18 + 22 * Math.sin((t * Math.PI) * 2);
+    p.fill(0, 0, 0, 14 + shade * 0.25);
+    p.rect(xx - 1, y + 2, 2, h - 4);
   }
 
-  // Edge stitching
-  p.stroke(trim);
-  p.strokeWeight(1.5);
-  p.noFill();
-  p.rect(x + 2.5, y + 2.5, w - 5, h - 5, 3);
-
   // Inner border
-  p.stroke(ink);
-  p.strokeWeight(1);
-  p.rect(x + 6, y + 6, w - 12, h - 12, 2);
-
-  // Emblem: shield + laurel + star (fictional, neutral)
-  const cx = x + w * 0.5;
-  const cy = y + h * 0.56;
-
-  // Laurel arcs
   p.noFill();
-  p.stroke(trim);
-  p.strokeWeight(Math.max(1, w * 0.03));
-  p.arc(cx - w * 0.16, cy, w * 0.34, h * 0.46, p.PI * 0.15, p.PI * 0.95);
-  p.arc(cx + w * 0.16, cy, w * 0.34, h * 0.46, p.PI * 0.05, p.PI * 0.85);
+  p.stroke(safeStroke);
+  p.strokeWeight(1.5);
+  p.rect(x + 3, y + 3, w - 6, h - 6, 3);
 
-  // Shield shape
+  // Neutral emblem: shield + chevron + dot (recognisable, not real-world)
+  const cx = x + w * 0.5;
+  const cy = y + h * 0.52;
+  const sw = w * 0.45;
+  const sh = h * 0.55;
+
   p.noStroke();
   p.fill(255, 255, 255, 200);
-  const sw = w * 0.42;
-  const sh = h * 0.54;
   p.beginShape();
   p.vertex(cx - sw * 0.5, cy - sh * 0.35);
   p.vertex(cx + sw * 0.5, cy - sh * 0.35);
-  p.vertex(cx + sw * 0.35, cy + sh * 0.12);
-  p.vertex(cx,             cy + sh * 0.42);
-  p.vertex(cx - sw * 0.35, cy + sh * 0.12);
+  p.vertex(cx + sw * 0.35, cy + sh * 0.15);
+  p.vertex(cx,           cy + sh * 0.40);
+  p.vertex(cx - sw * 0.35, cy + sh * 0.15);
   p.endShape(p.CLOSE);
 
-  // Chevron
   p.fill(0, 0, 0, 150);
   p.beginShape();
   p.vertex(cx - sw * 0.32, cy - sh * 0.10);
@@ -112,21 +96,12 @@ export function drawFauxBanner(x, y, w, h, fillCol, strokeCol) {
   p.vertex(cx - sw * 0.22, cy - sh * 0.22);
   p.endShape(p.CLOSE);
 
-  // Star (simple 5-point)
-  p.fill(0, 0, 0, 170);
-  const r1 = Math.max(3, w * 0.06);
-  const r2 = r1 * 0.45;
-  const starY = cy - sh * 0.24;
-  p.beginShape();
-  for (let i = 0; i < 10; i++) {
-    const ang = -p.HALF_PI + i * (p.TWO_PI / 10);
-    const r = (i % 2 === 0) ? r1 : r2;
-    p.vertex(cx + Math.cos(ang) * r, starY + Math.sin(ang) * r);
-  }
-  p.endShape(p.CLOSE);
+  p.fill(0, 0, 0, 160);
+  p.ellipse(cx, cy - sh * 0.22, sw * 0.12, sw * 0.12);
 
   p.pop();
 }
+
 
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));

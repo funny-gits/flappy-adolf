@@ -170,7 +170,16 @@ let C_BLOOD_RED; // New
 let C_BANNER_BG_RED, C_BANNER_SYMBOL_BLACK, C_BANNER_CIRCLE_WHITE; // New for banner
 
 // Global function for drawing faux banner
-function drawFauxBanner(x, y, w, h, fillCol, strokeCol) {
+function drawFauxBanner(x, y, w, h, fillCol = null, strokeCol = null) {
+  // Defensive defaults: some call sites pass only (x,y,w,h).
+  if (!fillCol) {
+    fillCol = (typeof C_BANNER_BG_RED !== "undefined" && C_BANNER_BG_RED) ? C_BANNER_BG_RED
+      : (typeof color === "function" ? color(110, 0, 0) : "#6e0000");
+  }
+  if (!strokeCol) {
+    strokeCol = (typeof C_BANNER_SYMBOL_BLACK !== "undefined" && C_BANNER_SYMBOL_BLACK) ? C_BANNER_SYMBOL_BLACK
+      : (typeof color === "function" ? color(0) : "#000000");
+  }
   Utils.drawFauxBanner(x, y, w, h, fillCol, strokeCol);
 }
 
@@ -266,16 +275,6 @@ window.preload = function() {
 }
 
 // --- Background Element Class ---
-
-function mulberry32(a) {
-  return function() {
-    let t = a += 0x6D2B79F5;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 class BackgroundElement {
     constructor(x, y, w, h, type, speedFactor, color1, color2 = null) {
         this.initialX = x;
@@ -293,89 +292,6 @@ class BackgroundElement {
 
         this.wreckRotation = random(-0.15, 0.15); 
         this.emberTime = 0; 
-        this._regenDetails();
-    }
-
-    _regenDetails() {
-        const seed = (Math.floor(this.bannerSeed * 1000000) ^ (this.type.charCodeAt(0) << 16) ^ Math.floor(this.initialX)) >>> 0;
-        const rng = mulberry32(seed);
-        this.details = {};
-        if (this.type === "building") {
-            const roofCount = 11;
-            this.details.roofHeights = Array.from({length: roofCount}, (_, i) => rng() * this.h * 0.18);
-            const windows = [];
-            const cols = Math.max(2, Math.floor(this.w / 24));
-            const rows = Math.max(3, Math.floor(this.h / 28));
-            const padX = this.w * 0.10;
-            const padY = this.h * 0.15;
-            const cellW = (this.w - padX * 2) / cols;
-            const cellH = (this.h - padY * 2) / rows;
-            for (let r = 0; r < rows; r++) {
-              for (let c = 0; c < cols; c++) {
-                const ww = cellW * (0.45 + rng() * 0.25);
-                const hh = cellH * (0.45 + rng() * 0.25);
-                windows.push({
-                  x: padX + c * cellW + cellW * 0.2,
-                  y: padY + r * cellH + cellH * 0.2,
-                  w: ww,
-                  h: hh,
-                  lit: rng() < 0.35,
-                });
-              }
-            }
-            this.details.windows = windows;
-            const dmg = [];
-            const dmgCount = 2 + Math.floor(rng() * 5);
-            for (let i = 0; i < dmgCount; i++) {
-              dmg.push({
-                x: this.w * (0.05 + rng() * 0.85),
-                y: this.h * (0.05 + rng() * 0.85),
-                w: this.w * (0.05 + rng() * 0.20),
-                h: this.h * (0.03 + rng() * 0.12),
-              });
-            }
-            this.details.damageRects = dmg;
-            this.details.hasGlow = rng() < 0.55;
-            if (rng() < 0.30) {
-              const bw = Math.max(22, this.w * (0.20 + rng() * 0.15));
-              const bh = Math.max(30, this.h * (0.30 + rng() * 0.18));
-              this.details.banner = {
-                x: this.w * (0.10 + rng() * 0.55),
-                y: this.h * (0.10 + rng() * 0.35),
-                w: bw,
-                h: bh,
-              };
-            } else {
-              this.details.banner = null;
-            }
-        } else if (this.type === "pillar") {
-            const chips = [];
-            const n = 2 + Math.floor(rng() * 6);
-            for (let i = 0; i < n; i++) chips.push({ x: rng() * this.w * 0.8, y: rng() * this.h * 0.85, w: 2 + rng() * (this.w * 0.25), h: 1 + rng() * (this.h * 0.10) });
-            this.details.chips = chips;
-        } else if (this.type === "rubble") {
-            const pts = [];
-            const count = 7 + Math.floor(rng() * 4);
-            for (let i = 0; i < count; i++) {
-              pts.push({ x: (i / (count - 1)) * this.w, y: rng() * this.h * (i % 2 ? 0.8 : 0.55) });
-            }
-            pts.push({ x: this.w, y: this.h });
-            pts.push({ x: 0, y: this.h });
-            this.details.poly = pts;
-            const sh = [];
-            const sn = 2 + Math.floor(rng() * 4);
-            for (let i = 0; i < sn; i++) sh.push({ x: rng() * this.w * 0.8, y: rng() * this.h * 0.8, w: 6 + rng() * this.w * 0.25, h: 3 + rng() * this.h * 0.15 });
-            this.details.shadows = sh;
-        } else if (this.type === "static_wreck") {
-            const rivets = [];
-            const rn = 6 + Math.floor(rng() * 8);
-            for (let i = 0; i < rn; i++) rivets.push({ x: rng() * this.w, y: rng() * this.h, s: 1.5 + rng() * 2.5 });
-            this.details.rivets = rivets;
-        } else if (this.type === "banner_pole") {
-            const bw = Math.max(38, this.w);
-            const bh = Math.max(60, this.h);
-            this.details.bannerPole = { x: 8, y: 6, w: bw, h: bh };
-        }
     }
 
     update() {
@@ -412,106 +328,61 @@ class BackgroundElement {
         }
     }
 
-show() {
-    noStroke();
+    show() {
+        noStroke();
+        if (this.type === 'building') {
+            fill(this.color1); 
+            rect(this.x, this.y, this.w, this.h);
 
-    if (this.type === 'building') {
-        // Base
-        fill(this.color1);
-        rect(this.x, this.y, this.w, this.h);
+            fill(this.color1); 
+            beginShape();
+            vertex(this.x, this.y);
+            for (let i = 0; i <= 10; i++) {
+                let stepX = this.x + (this.w / 10) * i;
+                let stepY = this.y - noise(this.noiseOffsetX + i * 0.3) * this.h * 0.18; 
+                vertex(stepX, stepY);
+            }
+            vertex(this.x + this.w, this.y);
+            vertex(this.x + this.w, this.y + random(5,15)); 
+            vertex(this.x, this.y + random(5,15));
+            endShape(CLOSE);
 
-        // Roof silhouette (stable)
-        fill(this.color1);
-        beginShape();
-        vertex(this.x, this.y);
-        const roof = this.details.roofHeights;
-        for (let i = 0; i < roof.length; i++) {
-            const stepX = this.x + (this.w / (roof.length - 1)) * i;
-            const stepY = this.y - roof[i];
-            vertex(stepX, stepY);
-        }
-        vertex(this.x + this.w, this.y + 1);
-        endShape(CLOSE);
+            fill(this.color2); 
+            for (let i = 0; i < random(2, 6); i++) { 
+                let spotX = this.x + random(this.w * 0.1, this.w * 0.8);
+                let spotY = this.y + random(this.h * 0.1, this.h * 0.8);
+                let spotW = random(this.w * 0.15, this.w * 0.35); 
+                let spotH = random(this.h * 0.1, this.h * 0.25);
+                rect(spotX, spotY, spotW, spotH); 
+                
+                stroke(C_PILLAR_DARK); 
+                strokeWeight(random(1,2));
+                if(random() < 0.6) line(spotX + random(spotW*0.2), spotY + random(spotH*0.2), spotX + spotW - random(spotW*0.2), spotY + spotH - random(spotH*0.2));
+                if(random() < 0.4) line(spotX + spotW - random(spotW*0.2), spotY + random(spotH*0.2), spotX + random(spotW*0.2), spotY + spotH - random(spotH*0.2));
+                noStroke();
+            }
+            
+            if (noise(this.noiseOffsetX + 100) < 0.4) { 
+                let glowX = this.x + this.w / 2;
+                let glowY = this.y - random(5,25); 
+                let flicker = noise(this.noiseOffsetY + frameCount * 0.05);
+                fill(C_FIRE_GLOW_STRONG.levels[0], C_FIRE_GLOW_STRONG.levels[1], C_FIRE_GLOW_STRONG.levels[2], 30 + flicker * 80);
+                ellipse(glowX, glowY, this.w * (0.4 + flicker * 0.25), this.h * (0.15 + flicker * 0.15));
+            }
 
-        // Windows (stable "lit" pattern)
-        for (const win of this.details.windows) {
-            fill(win.lit ? this.color2 : color(0, 0, 0, 80));
-            rect(this.x + win.x, this.y + win.y, win.w, win.h, 1);
-        }
+            if (noise(this.bannerSeed) < 0.3) { 
+                let bannerW = this.w * 0.25; 
+                let bannerH = this.h * 0.4;  
+                let bannerX = this.x + this.w * 0.1 + noise(this.bannerSeed + 10) * (this.w * 0.5 - bannerW); 
+                let bannerY = this.y + this.h * 0.1 + noise(this.bannerSeed + 20) * (this.h * 0.4 - bannerH); 
+                
+                bannerW = max(20, bannerW); 
+                bannerH = max(30, bannerH);
 
-        // Damage overlays (stable)
-        fill(0, 0, 0, 45);
-        for (const d of this.details.damageRects) {
-            rect(this.x + d.x, this.y + d.y, d.w, d.h, 1);
-        }
+                drawFauxBanner(bannerX, bannerY, bannerW, bannerH);
+            }
 
-        // Heat glow (smooth noise, no per-frame random)
-        if (this.details.hasGlow) {
-            const glowX = this.x + this.w / 2;
-            const t = frameCount * 0.01;
-            const flicker = noise(this.noiseOffsetY + t);
-            const yOff = lerp(8, 22, noise(this.noiseOffsetX + t * 0.7));
-            fill(C_FIRE_GLOW_STRONG.levels[0], C_FIRE_GLOW_STRONG.levels[1], C_FIRE_GLOW_STRONG.levels[2], 25 + flicker * 70);
-            ellipse(glowX, this.y - yOff, this.w * (0.35 + flicker * 0.25), this.h * (0.12 + flicker * 0.15));
-        }
-
-        // Optional banner (stable placement)
-        if (this.details.banner) {
-            const b = this.details.banner;
-            drawFauxBanner(this.x + b.x, this.y + b.y, b.w, b.h, C_BANNER_BG_RED, C_BANNER_SYMBOL_BLACK);
-        }
-            this._regenDetails();
-        }
-
-    } else if (this.type === 'pillar') {
-        // Simple pillar with stable highlights + chips
-        fill(this.color1);
-        rect(this.x, this.y, this.w, this.h, 2);
-
-        fill(this.color2);
-        rect(this.x + this.w * 0.18, this.y, this.w * 0.16, this.h);
-
-        fill(0, 0, 0, 45);
-        for (const c of this.details.chips) {
-            rect(this.x + c.x, this.y + c.y, c.w, c.h, 1);
-        }
-
-    } else if (this.type === 'rubble') {
-        fill(this.color1);
-        beginShape();
-        for (const pt of this.details.poly) vertex(this.x + pt.x, this.y + pt.y);
-        endShape(CLOSE);
-
-        fill(0, 0, 0, 35);
-        for (const s of this.details.shadows) {
-            rect(this.x + s.x, this.y + s.y, s.w, s.h, 1);
-        }
-
-    } else if (this.type === 'static_wreck') {
-        push();
-        translate(this.x + this.w / 2, this.y + this.h / 2);
-        rotate(this.wreckRotation);
-        fill(this.color1);
-        rect(-this.w / 2, -this.h / 2, this.w, this.h, 3);
-
-        // rivets
-        fill(0, 0, 0, 55);
-        for (const r of this.details.rivets) {
-            ellipse(-this.w / 2 + r.x, -this.h / 2 + r.y, r.s, r.s);
-        }
-        pop();
-
-    } else if (this.type === 'banner_pole') {
-        // Pole
-        fill(C_PILLAR_DARK);
-        rect(this.x - 3, this.y - 10, 6, this.h + 20, 1);
-
-        // Cloth banner
-        const b = this.details.bannerPole;
-        drawFauxBanner(this.x + b.x, this.y + b.y, b.w, b.h, C_BANNER_BG_RED, C_BANNER_SYMBOL_BLACK);
-    }
-}
-} else if (this.type === 'pillar') {
+        } else if (this.type === 'pillar') {
             fill(this.color1);
             rect(this.x, this.y, this.w, this.h, 2);
             fill(this.color2);
@@ -576,7 +447,7 @@ show() {
         } else if (this.type === 'banner_pole') { 
             fill(C_PILLAR_DARK);
             rect(this.x - 3, this.y - 10, 6, this.h + 20, 1); 
-            drawFauxBanner(this.x, this.y, this.w, this.h, C_BANNER_BG_RED, C_BANNER_SYMBOL_BLACK);
+            drawFauxBanner(this.x, this.y, this.w, this.h);
         }
     }
 }
@@ -625,18 +496,10 @@ window.setup = function() {
 
   try {
     const app = (firebaseConfig && typeof firebaseConfig === "object" && firebaseConfig.apiKey) ? initializeApp(firebaseConfig) : null;
-    if (app) {
-      db = getFirestore(app);
-      auth = getAuth(app);
-    } else {
-      db = null;
-      auth = null;
-      console.warn("Firebase: disabled (missing config). Using local-only scores.");
-      userId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
-    }
+    db = getFirestore(app);
+    auth = getAuth(app);
 
-    if (auth) {
-      onAuthStateChanged(auth, async (user) => {
+    onAuthStateChanged(auth, async (user) => {
       if (user) {
         userId = user.uid;
         console.log("Firebase: User signed in with UID:", userId);
@@ -671,7 +534,6 @@ window.setup = function() {
           console.error("DEBUG: window.showNameInput is not defined!");
       }
     });
-    }
   } catch (e) {
       console.error("Firebase initialization error:", e);
       isAuthReady = false; 

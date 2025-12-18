@@ -69,11 +69,6 @@
         
         /* Game Container - centers the canvas */
         #game-container {
-            /* Canvas touch behavior */
-        }
-        #game-container canvas { touch-action: none; }
-
-        #game-container {
             display: flex;
             justify-content: center;
             align-items: center;
@@ -84,23 +79,13 @@
 
         /* Button Styling */
         .btn {
-            padding: 12px 18px;
-            border-radius: 12px;
-            font-weight: 800;
-            font-size: 16px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            transition: transform 0.08s ease, filter 0.15s ease, opacity 0.15s ease;
-            font-family: 'Oswald', sans-serif;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.45), 0 10px 24px rgba(0,0,0,0.35);
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.55);
+            @apply px-6 py-3 rounded-md font-bold text-lg uppercase tracking-wider transition-all duration-200 ease-in-out;
+            font-family: 'Oswald', sans-serif; /* Specific font for buttons */
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5), 0 3px 6px rgba(0, 0, 0, 0.2);
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
             border: 1px solid var(--color-panel-border);
-            min-width: 180px;
+            min-width: 200px; /* Ensure buttons have a decent minimum width */
             text-align: center;
-            cursor: pointer;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
         }
 
         .btn:hover {
@@ -141,42 +126,31 @@
 
         /* Modal Styling */
         .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.78);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            padding: 16px;
+            @apply fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4;
+             backdrop-filter: blur(3px); /* Frosted glass effect */
         }
 
         .modal-content {
-            background: linear-gradient(180deg, rgba(28,30,36,0.98), rgba(18,19,22,0.98));
-            border: 1px solid var(--color-panel-border);
-            border-radius: 16px;
-            width: min(560px, 94vw);
-            max-height: 86vh;
-            overflow: hidden;
-            box-shadow: 0 30px 90px rgba(0,0,0,0.55);
-            padding: 18px 18px 16px;
-            text-align: center;
+            background-color: var(--color-bg-medium);
+            @apply p-6 sm:p-8 rounded-lg shadow-xl max-w-lg w-full text-center; /* Responsive max-width */
+            border: 3px solid var(--color-panel-border);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
         }
 
         .modal-content h2 {
-            font-size: 28px;
-            font-weight: 900;
-            letter-spacing: 0.06em;
-            margin: 6px 0 12px;
-            text-transform: uppercase;
             font-family: 'Oswald', sans-serif;
+            @apply text-3xl sm:text-4xl font-bold uppercase tracking-wide mb-4 sm:mb-6;
+            color: var(--color-khaki);
+            text-shadow: 2px 2px 3px rgba(0, 0, 0, 0.6);
         }
         .modal-content p {
             font-family: 'Merriweather', serif;
+            @apply text-base sm:text-lg text-gray-300 mb-6;
         }
 
         /* Scoreboard List Styling */
         #scoreboard ul {
+            @apply list-none p-0 m-0 max-h-60 overflow-y-auto; /* Scrollable list for many scores */
              scrollbar-width: thin;
              scrollbar-color: var(--color-khaki) var(--color-bg-dark);
         }
@@ -195,6 +169,7 @@
 
 
         #scoreboard li {
+            @apply flex justify-between items-center py-2.5 px-3 my-2 rounded-sm text-sm sm:text-base;
             background-color: var(--color-bg-dark);
             border: 1px dashed #444; /* Dashed border for military feel */
             color: var(--color-distressed-white);
@@ -202,22 +177,26 @@
 
         #scoreboard li .rank {
             font-family: 'Oswald', sans-serif;
+            @apply font-bold;
             color: var(--color-khaki);
             min-width: 25px; /* Ensure rank number has space */
             text-align: left;
         }
 
         #scoreboard li .player-name {
+            @apply flex-grow text-left ml-3 sm:ml-4 truncate; /* Truncate long names */
             color: var(--color-distressed-white);
         }
 
         #scoreboard li .score-value {
             font-family: 'Oswald', sans-serif;
+            @apply font-bold;
             color: #90ee90; /* Light green for score */
             min-width: 60px; /* Ensure score has space */
             text-align: right;
         }
         #scoreboard li .score-date {
+            @apply text-gray-500 text-xs ml-3 sm:ml-4 whitespace-nowrap; /* Prevent date from wrapping */
             min-width: 100px;
             text-align: right;
         }
@@ -227,6 +206,7 @@
         #playerNameInput input {
             background-color: var(--color-bg-dark);
             color: var(--color-distressed-white);
+            @apply w-full p-3 rounded-sm border-2 border-gray-600 focus:border-khaki text-base;
             font-family: 'Merriweather', serif;
             box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
         }
@@ -236,24 +216,14 @@
 
         /* In-Game Touch Controls Styling */
         #in-game-controls {
-            position: fixed;
-            left: 0;
-            right: 0;
-            bottom: max(14px, env(safe-area-inset-bottom));
-            display: none;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            padding: 0 14px;
-            z-index: 900;
-            pointer-events: none; /* only buttons catch touches */
-        }
-        #in-game-controls button {
-            pointer-events: auto;
+            @apply fixed bottom-5 w-full flex justify-between px-5 z-40;
+            max-width: var(--canvas-max-width); /* Use CSS variable to align with canvas */
+            pointer-events: none; /* Parent div doesn't block clicks to canvas */
         }
 
         #in-game-controls button {
             pointer-events: auto; /* Buttons themselves are clickable */
+            @apply rounded-full flex items-center justify-center text-white font-bold uppercase;
             background-color: rgba(0, 0, 0, 0.4); /* Semi-transparent background */
             border: 2px solid rgba(255,255,255,0.3); /* Subtle border */
             backdrop-filter: blur(2px); /* Slight blur for readability over game */
@@ -268,31 +238,17 @@
         }
 
         #jumpButton {
-            width: 92px;
-            height: 92px;
-            border-radius: 999px;
-            font-size: 32px;
-            background: var(--color-military-green);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid rgba(255,255,255,0.14);
+            width: 96px;
+            height: 96px;
+            font-size: 2rem;
+            background-color: var(--color-military-green);
         }
 
         #shootButton {
-            width: 116px;
-            height: 116px;
-            border-radius: 999px;
-            font-size: 36px;
-            background: var(--color-metal-grey);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid rgba(255,255,255,0.14);
-        }
-        @media (max-width: 420px) {
-            #jumpButton { width: 82px; height: 82px; font-size: 28px; }
-            #shootButton { width: 104px; height: 104px; font-size: 32px; }
+            width: 112px;
+            height: 112px;
+            font-size: 2.25rem;
+            background-color: var(--color-metal-grey);
         }
          /* Ensure icons are centered and sized well within buttons */
         #in-game-controls button i {
