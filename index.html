@@ -77,7 +77,71 @@
         }
 
 
-        /* Button Styling */
+        
+        /* Responsive canvas scaling (keeps internal resolution fixed) */
+        #game-container {
+            width: min(960px, 100vw);
+            aspect-ratio: 16 / 9;
+        }
+        #game-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Landscape gate for mobile: show a rotate prompt in portrait */
+        #rotate-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.78);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+        }
+        #rotate-overlay .rotate-card {
+            width: min(520px, 92vw);
+            background: rgba(20, 24, 34, 0.95);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 18px;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+            padding: 22px;
+        }
+        #rotate-overlay .rotate-icon {
+            font-size: 48px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+        #rotate-overlay .rotate-title {
+            font-family: 'Oswald', sans-serif;
+            font-size: 28px;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+        #rotate-overlay .rotate-subtitle {
+            font-size: 16px;
+            opacity: 0.85;
+        }
+
+        /* Only gate small devices; desktop stays unchanged */
+        @media (orientation: portrait) and (max-width: 900px) {
+            #rotate-overlay { display: flex; }
+        }
+
+        /* Improve mobile control hit targets + safe area */
+        #in-game-controls {
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        }
+        @media (max-width: 640px) {
+            #in-game-controls {
+                bottom: 10px;
+                gap: 12px;
+            }
+            #jumpButton { width: 96px; height: 96px; font-size: 2rem; }
+            #shootButton { width: 132px; height: 132px; font-size: 2.4rem; }
+        }
+/* Button Styling */
         .btn {
             @apply px-6 py-3 rounded-md font-bold text-lg uppercase tracking-wider transition-all duration-200 ease-in-out;
             font-family: 'Oswald', sans-serif; /* Specific font for buttons */
@@ -262,6 +326,14 @@
 
     <div id="game-container" class="relative">
         </div>
+
+    <div id="rotate-overlay" aria-hidden="true">
+        <div class="rotate-card">
+            <div class="rotate-icon">↻</div>
+            <div class="rotate-title">Rotate your device</div>
+            <div class="rotate-subtitle">This game plays best in landscape.</div>
+        </div>
+    </div>
 
     <div id="main-menu-buttons" class="flex flex-col sm:flex-row gap-4 mt-6" style="display: none;">
         <button id="startButton" class="btn btn-primary">

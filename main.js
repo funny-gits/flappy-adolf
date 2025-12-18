@@ -797,6 +797,12 @@ window.setup = function() {
   };
 
   canvas.parent('game-container');
+  // Scale the canvas to fit its container (internal resolution stays fixed)
+  try {
+    canvas.style('width', '100%');
+    canvas.style('height', '100%');
+  } catch (_) {}
+
   pixelDensity(1);
   defineColors();
   textFont('Oswald'); 
