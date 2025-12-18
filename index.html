@@ -1,465 +1,543 @@
-<!-- FILE: index.html -->
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="color-scheme" content="dark" />
-  <title>Jetpack Run</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jetpack Jumper</title>
 
-  <style>
-    :root{
-      --bg: #0b0f14;
-      --panel: rgba(20, 26, 34, 0.92);
-      --panel-2: rgba(20, 26, 34, 0.75);
-      --text: #e9eef5;
-      --muted: #aeb9c6;
-      --accent: #8de0b4;
-      --danger: #ff6b6b;
-      --stroke: rgba(255,255,255,0.14);
-      --shadow: rgba(0,0,0,0.45);
-      --btn: rgba(255,255,255,0.08);
-      --btnHover: rgba(255,255,255,0.13);
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.5/lib/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.3/addons/p5.sound.min.js"></script>
+    <!-- p5.collide2d is not explicitly used by name in the JS, but its functions might be implicitly available or intended for use.
+         If you are using its specific functions like collideRectRect(), ensure it's correctly integrated or use your own versions.
+         The provided JS has its own collideRectRect and collideRectCircle.
+    -->
+    <script src="https://cdn.tailwindcss.com"></script>
 
-      --canvas-max-width: 960px;
-    }
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
-    body{
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      background: radial-gradient(1200px 700px at 50% 0%, #121a24 0%, var(--bg) 60%, #070a0e 100%);
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 18px;
-    }
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
 
-    .app{
-      width: min(980px, 100%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 14px;
-    }
 
-    header{
-      width: min(980px, 100%);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      opacity: 0.95;
-    }
+    <style>
+        :root {
+            --color-bg-dark: #2c2f33; /* Dark grey, almost black */
+            --color-bg-medium: #3a3e42; /* Medium dark grey */
+            --color-military-green: #4b5320; /* Olive drab / military green */
+            --color-khaki: #b5a770; /* Khaki / distressed gold */
+            --color-distressed-white: #e0e0e0; /* Off-white, slightly greyed */
+            --color-blood-red: #8b0000; /* Darker, more serious red */
+            --color-panel-border: #1a1a1a; /* Very dark border for panels */
+            --color-gold-coin: #b8860b; /* Darker gold for coins/score */
+            --color-metal-grey: #5a5a5a; /* Muted metal grey */
 
-    .brand{
-      display: flex;
-      flex-direction: column;
-      line-height: 1.15;
-    }
-    .brand strong{ font-size: 16px; letter-spacing: 0.06em; text-transform: uppercase; }
-    .brand span{ font-size: 12px; color: var(--muted); }
+            --color-text-main: var(--color-distressed-white);
+            --color-text-accent: var(--color-khaki);
+            
+            /* CSS variable for canvas width, to be set by JS based on SCREEN_WIDTH */
+            --canvas-max-width: 960px; /* Default, will be updated by JS */
+        }
 
-    .hint{
-      font-size: 12px;
-      color: var(--muted);
-      text-align: right;
-    }
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevents scrollbars on the main page */
+            overscroll-behavior: none; /* Prevents pull-to-refresh on mobile */
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--color-bg-dark);
+            color: var(--color-text-main);
+            font-family: 'Merriweather', serif; /* Default body font */
+            -webkit-touch-callout: none; /* iOS Safari - Disable callout (long-press menu) */
+            -webkit-user-select: none;   /* Safari - Disable text selection */
+            user-select: none;           /* Standard - Disable text selection */
+            -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+        }
 
-    #game-container{
-      width: 100%;
-      max-width: var(--canvas-max-width);
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 14px 42px var(--shadow);
-      border: 1px solid var(--stroke);
-      background: rgba(0,0,0,0.2);
-      position: relative;
-    }
+        /* Game Canvas Styling */
+        canvas {
+            display: block;
+            border-radius: 4px; /* Slightly rounded corners */
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4); /* Subtle shadow for depth */
+            max-width: 100%; /* Ensure canvas is responsive within its container */
+            height: auto;    /* Maintain aspect ratio */
+            border: 2px solid var(--color-panel-border); /* Dark border for definition */
+        }
+        
+        /* Game Container - centers the canvas */
+        #game-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0; /* Prevent shrinking if other content pushes it */
+            position: relative; /* For potential overlay elements if needed */
+        }
 
-    .row{
-      width: min(980px, 100%);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
-      align-items: center;
-    }
 
-    .btn{
-      border: 1px solid var(--stroke);
-      background: var(--btn);
-      color: var(--text);
-      padding: 10px 14px;
-      border-radius: 12px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      cursor: pointer;
-      transition: transform 0.06s ease, background 0.12s ease, border-color 0.12s ease;
-      user-select: none;
-    }
-    .btn:hover{ background: var(--btnHover); border-color: rgba(255,255,255,0.22); }
-    .btn:active{ transform: translateY(1px) scale(0.99); }
-    .btn.primary{ border-color: rgba(141,224,180,0.35); }
-    .btn.danger{ border-color: rgba(255,107,107,0.35); }
-    .btn.ghost{ background: transparent; }
+        /* Button Styling */
+        .btn {
+            @apply px-6 py-3 rounded-md font-bold text-lg uppercase tracking-wider transition-all duration-200 ease-in-out;
+            font-family: 'Oswald', sans-serif; /* Specific font for buttons */
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5), 0 3px 6px rgba(0, 0, 0, 0.2);
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--color-panel-border);
+            min-width: 200px; /* Ensure buttons have a decent minimum width */
+            text-align: center;
+        }
 
-    /* Modals */
-    .modal-overlay{
-      position: fixed;
-      inset: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 18px;
-      background: rgba(0,0,0,0.62);
-      z-index: 50;
-    }
-    .modal{
-      width: min(560px, 100%);
-      background: var(--panel);
-      border: 1px solid var(--stroke);
-      border-radius: 16px;
-      box-shadow: 0 16px 48px var(--shadow);
-      padding: 18px;
-    }
-    .modal h2{
-      margin: 0 0 8px 0;
-      font-size: 18px;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-    }
-    .modal p{ margin: 0 0 14px 0; color: var(--muted); font-size: 14px; }
-    .modal .actions{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 12px; }
+        .btn:hover {
+            transform: translateY(-1px) scale(1.02); /* Slight lift and scale on hover */
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        .btn:active {
+            transform: translateY(0px) scale(1); /* Press down effect */
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+        }
 
-    /* Scores list */
-    #highScoresList{
-      list-style: none;
-      padding: 0;
-      margin: 10px 0 0 0;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      max-height: 320px;
-      overflow: auto;
-    }
-    #highScoresList li{
-      display: grid;
-      grid-template-columns: 42px 1fr 80px 140px;
-      gap: 10px;
-      align-items: center;
-      background: var(--panel-2);
-      border: 1px solid var(--stroke);
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-size: 14px;
-    }
-    #highScoresList .rank{ color: var(--muted); font-weight: 700; }
-    #highScoresList .player-name{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #highScoresList .score-value{ text-align: right; color: var(--accent); font-weight: 800; }
-    #highScoresList .score-date{ text-align: right; color: var(--muted); font-size: 12px; white-space: nowrap; }
+        .btn-primary {
+            background-color: var(--color-military-green);
+            color: var(--color-distressed-white);
+            border-color: #383d1c; /* Darker border for primary */
+        }
+        .btn-primary:hover {
+            background-color: #5d682a; /* Slightly lighter on hover */
+        }
 
-    /* Name input */
-    #nameInputField{
-      width: 100%;
-      padding: 12px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--stroke);
-      background: rgba(0,0,0,0.25);
-      color: var(--text);
-      outline: none;
-      font-size: 14px;
-    }
-    #nameInputField:focus{
-      border-color: rgba(141,224,180,0.35);
-      box-shadow: 0 0 0 4px rgba(141,224,180,0.10);
-    }
+        .btn-secondary {
+            background-color: var(--color-metal-grey);
+            color: var(--color-distressed-white);
+            border-color: #404040; /* Darker border for secondary */
+        }
+        .btn-secondary:hover {
+            background-color: #6a6a6a; /* Slightly lighter on hover */
+        }
 
-    /* In-game touch controls */
-    #in-game-controls{
-      position: fixed;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: 18px;
-      width: min(980px, 100%);
-      max-width: var(--canvas-max-width);
-      display: none;
-      justify-content: space-between;
-      padding: 0 12px;
-      pointer-events: none;
-      z-index: 40;
-    }
-    #in-game-controls button{
-      pointer-events: auto;
-      width: 82px;
-      height: 82px;
-      border-radius: 999px;
-      border: 1px solid var(--stroke);
-      background: rgba(0,0,0,0.35);
-      color: var(--text);
-      font-size: 14px;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      backdrop-filter: blur(2px);
-      box-shadow: 0 10px 26px rgba(0,0,0,0.35);
-      transition: transform 0.08s ease, background 0.12s ease;
-      -webkit-tap-highlight-color: transparent;
-    }
-    #in-game-controls button:active{
-      transform: scale(0.95);
-      background: rgba(0,0,0,0.52);
-    }
-    #jumpButton{ border-color: rgba(141,224,180,0.28); }
-    #shootButton{ border-color: rgba(255,255,255,0.16); }
+        .btn-danger {
+            background-color: var(--color-blood-red);
+            color: var(--color-distressed-white);
+            border-color: #5c0000; /* Darker border for danger */
+        }
+        .btn-danger:hover {
+            background-color: #a02020; /* Slightly lighter on hover */
+        }
 
-    /* Small screens */
-    @media (max-width: 520px){
-      header{ gap: 8px; }
-      .hint{ display: none; }
-      #highScoresList li{ grid-template-columns: 34px 1fr 64px; }
-      #highScoresList .score-date{ display: none; }
-      #in-game-controls button{ width: 74px; height: 74px; }
-    }
-  </style>
+        /* Modal Styling */
+        .modal-overlay {
+            @apply fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4;
+             backdrop-filter: blur(3px); /* Frosted glass effect */
+        }
+
+        .modal-content {
+            background-color: var(--color-bg-medium);
+            @apply p-6 sm:p-8 rounded-lg shadow-xl max-w-lg w-full text-center; /* Responsive max-width */
+            border: 3px solid var(--color-panel-border);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+        }
+
+        .modal-content h2 {
+            font-family: 'Oswald', sans-serif;
+            @apply text-3xl sm:text-4xl font-bold uppercase tracking-wide mb-4 sm:mb-6;
+            color: var(--color-khaki);
+            text-shadow: 2px 2px 3px rgba(0, 0, 0, 0.6);
+        }
+        .modal-content p {
+            font-family: 'Merriweather', serif;
+            @apply text-base sm:text-lg text-gray-300 mb-6;
+        }
+
+        /* Scoreboard List Styling */
+        #scoreboard ul {
+            @apply list-none p-0 m-0 max-h-60 overflow-y-auto; /* Scrollable list for many scores */
+             scrollbar-width: thin;
+             scrollbar-color: var(--color-khaki) var(--color-bg-dark);
+        }
+        #scoreboard ul::-webkit-scrollbar {
+            width: 8px;
+        }
+        #scoreboard ul::-webkit-scrollbar-track {
+            background: var(--color-bg-dark);
+            border-radius: 4px;
+        }
+        #scoreboard ul::-webkit-scrollbar-thumb {
+            background-color: var(--color-khaki);
+            border-radius: 4px;
+            border: 2px solid var(--color-bg-dark);
+        }
+
+
+        #scoreboard li {
+            @apply flex justify-between items-center py-2.5 px-3 my-2 rounded-sm text-sm sm:text-base;
+            background-color: var(--color-bg-dark);
+            border: 1px dashed #444; /* Dashed border for military feel */
+            color: var(--color-distressed-white);
+        }
+
+        #scoreboard li .rank {
+            font-family: 'Oswald', sans-serif;
+            @apply font-bold;
+            color: var(--color-khaki);
+            min-width: 25px; /* Ensure rank number has space */
+            text-align: left;
+        }
+
+        #scoreboard li .player-name {
+            @apply flex-grow text-left ml-3 sm:ml-4 truncate; /* Truncate long names */
+            color: var(--color-distressed-white);
+        }
+
+        #scoreboard li .score-value {
+            font-family: 'Oswald', sans-serif;
+            @apply font-bold;
+            color: #90ee90; /* Light green for score */
+            min-width: 60px; /* Ensure score has space */
+            text-align: right;
+        }
+        #scoreboard li .score-date {
+            @apply text-gray-500 text-xs ml-3 sm:ml-4 whitespace-nowrap; /* Prevent date from wrapping */
+            min-width: 100px;
+            text-align: right;
+        }
+
+
+        /* Player Name Input Styling */
+        #playerNameInput input {
+            background-color: var(--color-bg-dark);
+            color: var(--color-distressed-white);
+            @apply w-full p-3 rounded-sm border-2 border-gray-600 focus:border-khaki text-base;
+            font-family: 'Merriweather', serif;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+        #nameInputField::placeholder {
+            color: #777; /* Lighter placeholder text */
+        }
+
+        /* In-Game Touch Controls Styling */
+        #in-game-controls {
+            @apply fixed bottom-5 w-full flex justify-between px-5 z-40;
+            max-width: var(--canvas-max-width); /* Use CSS variable to align with canvas */
+            pointer-events: none; /* Parent div doesn't block clicks to canvas */
+        }
+
+        #in-game-controls button {
+            pointer-events: auto; /* Buttons themselves are clickable */
+            @apply rounded-full flex items-center justify-center text-white font-bold uppercase;
+            background-color: rgba(0, 0, 0, 0.4); /* Semi-transparent background */
+            border: 2px solid rgba(255,255,255,0.3); /* Subtle border */
+            backdrop-filter: blur(2px); /* Slight blur for readability over game */
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+            transition: transform 0.1s ease-out, background-color 0.1s ease-out;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #in-game-controls button:active {
+            transform: scale(0.92); /* More pronounced press effect */
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+
+        #jumpButton {
+            @apply w-20 h-20 sm:w-24 sm:h-24 text-3xl sm:text-4xl; /* Responsive size */
+            background-color: var(--color-military-green); /* Consistent with theme */
+        }
+
+        #shootButton {
+            @apply w-20 h-20 sm:w-24 sm:h-24 text-3xl sm:text-4xl; /* Responsive size */
+            background-color: var(--color-metal-grey); /* Consistent with theme */
+        }
+         /* Ensure icons are centered and sized well within buttons */
+        #in-game-controls button i {
+            font-size: inherit; /* Make icon size relative to button's text size */
+        }
+
+
+    </style>
 </head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
 
-<body>
-  <div class="app">
-    <header>
-      <div class="brand">
-        <strong>Jetpack Run</strong>
-        <span>Hold SPACE (or Jump) to thrust • Avoid obstacles • Grab coins</span>
-      </div>
-      <div class="hint">Tip: Hard refresh if you just pushed updates</div>
-    </header>
-
-    <div id="game-container" class="relative"></div>
-
-    <div id="main-menu-buttons" class="row" style="display:none;">
-      <button id="startButton" class="btn primary">Start</button>
-      <button id="viewScoresButton" class="btn">Records</button>
-      <button id="nameButton" class="btn ghost">Codename</button>
-    </div>
-
-    <div id="game-over-buttons" class="row" style="display:none;">
-      <button id="retryButton" class="btn primary">Retry</button>
-      <button id="mainMenuButtonFromGameOver" class="btn">Main Menu</button>
-      <button id="viewScoresButtonFromGameOver" class="btn">Records</button>
-    </div>
-
-    <!-- Scoreboard Modal -->
-    <div id="scoreboard" class="modal-overlay" style="display:none;">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="scores-title">
-        <h2 id="scores-title">Records</h2>
-        <p>Top runs saved on this device.</p>
-        <ul id="highScoresList"></ul>
-        <div class="actions">
-          <button id="closeScoreboardButton" class="btn danger">Close</button>
+    <div id="game-container" class="relative">
         </div>
-      </div>
+
+    <div id="main-menu-buttons" class="flex flex-col sm:flex-row gap-4 mt-6" style="display: none;">
+        <button id="startButton" class="btn btn-primary">
+            <i class="fas fa-plane-departure mr-2"></i> Start Mission
+        </button>
+        <button id="viewScoresButton" class="btn btn-secondary">
+            <i class="fas fa-medal mr-2"></i> View Records
+        </button>
     </div>
 
-    <!-- Name Modal -->
-    <div id="playerNameInput" class="modal-overlay" style="display:none;">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="name-title">
-        <h2 id="name-title">Codename</h2>
-        <p>Used for local records. Max 15 characters.</p>
-        <input id="nameInputField" type="text" maxlength="15" placeholder="Your codename" />
-        <div class="actions">
-          <button id="saveNameButton" class="btn primary">Save</button>
-          <button id="deleteNameButton" class="btn danger" style="display:none;">Delete</button>
-          <button id="closeNameButton" class="btn">Close</button>
+    <div id="game-over-buttons" class="flex flex-col sm:flex-row gap-4 mt-6" style="display: none;">
+        <button id="retryButton" class="btn btn-primary">
+            <i class="fas fa-redo-alt mr-2"></i> Re-deploy
+        </button>
+        <button id="mainMenuButtonFromGameOver" class="btn btn-secondary">
+            <i class="fas fa-home mr-2"></i> Command Center
+        </button>
+    </div>
+
+    <div id="scoreboard" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h2>Combat Records</h2>
+            <ul id="highScoresList" class="mb-6">
+                </ul>
+            <button id="closeScoreboardButton" class="btn btn-danger">
+                <i class="fas fa-times-circle mr-2"></i> Close Dossier
+            </button>
         </div>
-      </div>
     </div>
 
-    <!-- In-game touch controls -->
-    <div id="in-game-controls">
-      <button id="jumpButton">Jump</button>
-      <button id="shootButton">Shoot</button>
+    <div id="playerNameInput" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h2>Identify Yourself, Soldier!</h2>
+            <p class="mb-4">Enter your codename to log your performance.</p>
+            <input type="text" id="nameInputField" placeholder="Your Codename (max 15)" maxlength="15" class="mb-4">
+            <div class="flex flex-col sm:flex-row gap-3 justify-center">
+                <button id="saveNameButton" class="btn btn-primary">
+                    <i class="fas fa-id-badge mr-2"></i> Enlist
+                </button>
+                <button id="deleteNameButton" class="btn btn-danger" style="display: none;">
+                    <i class="fas fa-user-times mr-2"></i> Delete Codename
+                </button>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- p5 must load BEFORE main.js -->
-  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/addons/p5.sound.min.js"></script>
+    <div id="in-game-controls" style="display: none;">
+        <button id="jumpButton">
+            <i class="fas fa-rocket"></i>
+        </button>
+        <button id="shootButton">
+            <i class="fas fa-crosshairs"></i>
+        </button>
+    </div>
 
-  <!-- Cache-bust main.js to avoid GH Pages stale caching -->
-  <script type="module" src="./main.js?v=2025-12-18-2"></script>
+    <script type="module" src="main.js"></script>
 
-  <script>
-    // --- UI element refs ---
-    const startButton = document.getElementById('startButton');
-    const viewScoresButton = document.getElementById('viewScoresButton');
-    const retryButton = document.getElementById('retryButton');
-    const mainMenuButtonFromGameOver = document.getElementById('mainMenuButtonFromGameOver');
-    const viewScoresButtonFromGameOver = document.getElementById('viewScoresButtonFromGameOver');
-    const nameButton = document.getElementById('nameButton');
+    <script>
+        // Get references to UI elements
+        const startButton = document.getElementById('startButton');
+        const viewScoresButton = document.getElementById('viewScoresButton');
+        const retryButton = document.getElementById('retryButton');
+        const mainMenuButtonFromGameOver = document.getElementById('mainMenuButtonFromGameOver');
+        const mainMenuButtonsDiv = document.getElementById('main-menu-buttons');
+        const gameOverButtonsDiv = document.getElementById('game-over-buttons');
+        const scoreboardModal = document.getElementById('scoreboard');
+        const closeScoreboardButton = document.getElementById('closeScoreboardButton');
+        const playerNameInputModal = document.getElementById('playerNameInput');
+        const nameInputField = document.getElementById('nameInputField');
+        const saveNameButton = document.getElementById('saveNameButton');
+        const deleteNameButton = document.getElementById('deleteNameButton');
 
-    const mainMenuButtonsDiv = document.getElementById('main-menu-buttons');
-    const gameOverButtonsDiv = document.getElementById('game-over-buttons');
+        const inGameControlsDiv = document.getElementById('in-game-controls');
+        const jumpButton = document.getElementById('jumpButton');
+        const shootButton = document.getElementById('shootButton');
 
-    const scoreboardModal = document.getElementById('scoreboard');
-    const closeScoreboardButton = document.getElementById('closeScoreboardButton');
+        // --- UI Visibility Control Functions (Exposed to window for p5.js to call) ---
+        window.showMainMenuButtons = function(show) {
+            mainMenuButtonsDiv.style.display = show ? 'flex' : 'none';
+            if (show && playerNameInputModal.style.display === 'none') {
+                 nameInputField.value = window.playerName || "Recruit";
+            }
+        };
 
-    const playerNameInputModal = document.getElementById('playerNameInput');
-    const nameInputField = document.getElementById('nameInputField');
-    const saveNameButton = document.getElementById('saveNameButton');
-    const deleteNameButton = document.getElementById('deleteNameButton');
-    const closeNameButton = document.getElementById('closeNameButton');
+        window.showGameOverButtons = function(show) {
+            gameOverButtonsDiv.style.display = show ? 'flex' : 'none';
+        };
 
-    const inGameControlsDiv = document.getElementById('in-game-controls');
-    const jumpButton = document.getElementById('jumpButton');
-    const shootButton = document.getElementById('shootButton');
+        window.showScoreboard = function(show) {
+            if (show) {
+                scoreboardModal.style.display = 'flex';
+                if (typeof window.displayHighScores === 'function') {
+                    window.displayHighScores();
+                }
+            } else {
+                scoreboardModal.style.display = 'none';
+            }
+        };
 
-    // Default screen if main.js hasn't set it yet
-    if (!window.currentScreen) window.currentScreen = "START";
+        window.showNameInput = function(show) {
+            if (show) {
+                playerNameInputModal.style.display = 'flex';
+                nameInputField.value = window.playerName || "Recruit";
+                nameInputField.focus();
+                if (window.playerName && window.playerName !== "Recruit" && window.playerName !== "Player") {
+                    deleteNameButton.style.display = 'inline-block';
+                } else {
+                    deleteNameButton.style.display = 'none';
+                }
+            } else {
+                playerNameInputModal.style.display = 'none';
+            }
+        };
 
-    // --- UI visibility API expected by main.js ---
-    window.showMainMenuButtons = function(show){
-      mainMenuButtonsDiv.style.display = show ? 'flex' : 'none';
-    };
+        window.showInGameControls = function(show) {
+            inGameControlsDiv.style.display = show ? 'flex' : 'none';
+        };
 
-    window.showGameOverButtons = function(show){
-      gameOverButtonsDiv.style.display = show ? 'flex' : 'none';
-    };
+        // --- Event Listeners for Buttons ---
+        startButton.addEventListener('click', () => {
+            if (window.currentScreen === "START") {
+                window.currentScreen = "GAME";
+                if (typeof window.resetGameValues === 'function') {
+                    window.resetGameValues();
+                }
+                window.showMainMenuButtons(false);
+                window.showNameInput(false);
+            }
+            startButton.blur();
+        });
 
-    window.showInGameControls = function(show){
-      inGameControlsDiv.style.display = show ? 'flex' : 'none';
-    };
+        viewScoresButton.addEventListener('click', () => {
+            if (window.currentScreen === "START") {
+                window.showScoreboard(true);
+            }
+            viewScoresButton.blur();
+        });
 
-    window.showScoreboard = function(show){
-      scoreboardModal.style.display = show ? 'flex' : 'none';
-      if (show && typeof window.displayHighScores === 'function') {
-        window.displayHighScores();
-      }
-      if (show) window.currentScreen = "SCOREBOARD";
-    };
+        retryButton.addEventListener('click', () => {
+            if (window.currentScreen === "GAME_OVER") {
+                window.currentScreen = "GAME";
+                if (typeof window.resetGameValues === 'function') {
+                    window.resetGameValues();
+                }
+            }
+            retryButton.blur();
+        });
 
-    window.showNameInput = function(show){
-      playerNameInputModal.style.display = show ? 'flex' : 'none';
-      if (show) {
-        nameInputField.value = window.playerName || "Recruit";
-        nameInputField.focus();
-        // show delete only if a custom name exists
-        const n = (window.playerName || "").trim();
-        deleteNameButton.style.display = (n && n !== "Recruit" && n !== "Player") ? 'inline-block' : 'none';
-      }
-    };
+        mainMenuButtonFromGameOver.addEventListener('click', () => {
+            if (window.currentScreen === "GAME_OVER" || window.currentScreen === "SCOREBOARD") {
+                window.currentScreen = "START";
+                if (typeof window.resetGameValues === 'function') {
+                    window.resetGameValues();
+                }
+                window.showScoreboard(false);
+            }
+            mainMenuButtonFromGameOver.blur();
+        });
 
-    // --- Button actions ---
-    startButton.addEventListener('click', () => {
-      if (window.currentScreen === "START") {
-        window.currentScreen = "GAME";
-        window.resetGameValues?.();
-        window.showMainMenuButtons(false);
-        window.showGameOverButtons(false);
-      }
-      startButton.blur();
-    });
+        closeScoreboardButton.addEventListener('click', () => {
+            window.showScoreboard(false);
+            closeScoreboardButton.blur();
+             if (window.currentScreen === "SCOREBOARD") { 
+                window.currentScreen = "START";
+            }
+        });
 
-    retryButton.addEventListener('click', () => {
-      if (window.currentScreen === "GAME_OVER") {
-        window.currentScreen = "GAME";
-        window.resetGameValues?.();
-      }
-      retryButton.blur();
-    });
+        saveNameButton.addEventListener('click', () => {
+            const newName = nameInputField.value.trim();
+            if (newName) {
+                if (typeof window.savePlayerName === 'function') {
+                    window.savePlayerName(newName);
+                }
+                window.showNameInput(false);
+                if (window.currentScreen === "START") {
+                    window.showMainMenuButtons(true);
+                }
+            } else {
+                nameInputField.placeholder = "Codename cannot be empty!";
+                setTimeout(() => { nameInputField.placeholder = "Your Codename (max 15)"; }, 2000);
+            }
+            saveNameButton.blur();
+        });
 
-    mainMenuButtonFromGameOver.addEventListener('click', () => {
-      window.currentScreen = "START";
-      window.resetGameValues?.();
-      window.showScoreboard(false);
-      window.showNameInput(false);
-      mainMenuButtonFromGameOver.blur();
-    });
+        deleteNameButton.addEventListener('click', () => {
+            if (typeof window.deletePlayerName === 'function') {
+                window.deletePlayerName();
+            }
+            nameInputField.value = window.playerName;
+            deleteNameButton.style.display = 'none';
+            deleteNameButton.blur();
+        });
 
-    viewScoresButton.addEventListener('click', () => {
-      if (window.currentScreen === "START") window.showScoreboard(true);
-      viewScoresButton.blur();
-    });
+        nameInputField.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                saveNameButton.click();
+            }
+        });
 
-    viewScoresButtonFromGameOver.addEventListener('click', () => {
-      window.showScoreboard(true);
-      viewScoresButtonFromGameOver.blur();
-    });
+        jumpButton.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+            if (window.currentScreen === "GAME") {
+                if (typeof window.setPlayerFlyingState === 'function') window.setPlayerFlyingState(true);
+                if (typeof window.triggerJumpSound === 'function') window.triggerJumpSound();
+            } else if (window.currentScreen === "START") {
+                 startButton.click();
+            }
+        }, { passive: false });
 
-    closeScoreboardButton.addEventListener('click', () => {
-      window.showScoreboard(false);
-      if (window.currentScreen === "SCOREBOARD") window.currentScreen = "START";
-      closeScoreboardButton.blur();
-    });
+        jumpButton.addEventListener('touchend', (event) => {
+            event.preventDefault();
+            if (window.currentScreen === "GAME") {
+                if (typeof window.stopPlayerFlying === 'function') window.stopPlayerFlying();
+            }
+        }, { passive: false });
 
-    nameButton.addEventListener('click', () => {
-      window.showNameInput(true);
-      nameButton.blur();
-    });
+        shootButton.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+            if (window.currentScreen === "GAME") {
+                if (typeof window.triggerPlayerShoot === 'function') window.triggerPlayerShoot();
+            }
+        }, { passive: false });
 
-    closeNameButton.addEventListener('click', () => {
-      window.showNameInput(false);
-      closeNameButton.blur();
-    });
+        jumpButton.addEventListener('mousedown', () => {
+             if (window.currentScreen === "GAME") {
+                if (typeof window.setPlayerFlyingState === 'function') window.setPlayerFlyingState(true);
+                if (typeof window.triggerJumpSound === 'function') window.triggerJumpSound();
+            } else if (window.currentScreen === "START") {
+                 startButton.click();
+            }
+        });
+        jumpButton.addEventListener('mouseup', () => {
+            if (window.currentScreen === "GAME") {
+                if (typeof window.stopPlayerFlying === 'function') window.stopPlayerFlying();
+            }
+        });
+         jumpButton.addEventListener('mouseleave', () => {
+            if (window.currentScreen === "GAME") {
+                if (playerIsFlying && typeof window.stopPlayerFlying === 'function') window.stopPlayerFlying();
+            }
+        });
 
-    saveNameButton.addEventListener('click', () => {
-      const newName = (nameInputField.value || "").trim();
-      if (!newName) {
-        nameInputField.placeholder = "Codename cannot be empty";
-        setTimeout(() => nameInputField.placeholder = "Your codename", 1600);
-        return;
-      }
-      window.savePlayerName?.(newName);
-      window.showNameInput(false);
-      if (window.currentScreen === "START") window.showMainMenuButtons(true);
-      saveNameButton.blur();
-    });
+        shootButton.addEventListener('mousedown', () => {
+            if (window.currentScreen === "GAME") {
+                if (typeof window.triggerPlayerShoot === 'function') window.triggerPlayerShoot();
+            }
+        });
 
-    deleteNameButton.addEventListener('click', () => {
-      window.deletePlayerName?.();
-      nameInputField.value = window.playerName || "Recruit";
-      deleteNameButton.style.display = 'none';
-      deleteNameButton.blur();
-    });
+        window.addEventListener('keydown', (event) => {
+            if (event.key === ' ') {
+                 if (playerNameInputModal.style.display === 'none' && scoreboardModal.style.display === 'none') {
+                    event.preventDefault();
+                }
+            }
+        }, { passive: false });
 
-    nameInputField.addEventListener('keydown', (e) => {
-      if (e.key === "Enter") saveNameButton.click();
-      if (e.key === "Escape") closeNameButton.click();
-    });
 
-    // --- Touch/mouse in-game controls ---
-    function startFlyingFromUI(){
-      if (window.currentScreen === "GAME") {
-        window.setPlayerFlyingState?.(true);
-        window.triggerJumpSound?.();
-      } else if (window.currentScreen === "START") {
-        startButton.click();
-        window.setPlayerFlyingState?.(true);
-        window.triggerJumpSound?.();
-      }
-    }
-    function stopFlyingFromUI(){
-      if (window.currentScreen === "GAME") window.stopPlayerFlying?.();
-    }
+        window.addEventListener('wheel', (event) => {
+            let target = event.target;
+            let inScrollableModalContent = false;
+            while(target && target !== document.body) {
+                if (target.id === 'highScoresList' || (target.classList && target.classList.contains('modal-content'))) {
+                    const style = window.getComputedStyle(target);
+                    if (style.overflowY === 'auto' || style.overflowY === 'scroll' || target.id === 'highScoresList') {
+                        if (target.scrollHeight > target.clientHeight && target.id === 'highScoresList') {
+                            inScrollableModalContent = true;
+                            break;
+                        }
+                    }
+                }
+                target = target.parentNode;
+            }
+            if (!inScrollableModalContent) {
+                 event.preventDefault();
+            }
+        }, { passive: false });
 
-    jumpButton.addEventListener('touchstart', (e) => { e.preventDefault(); startFlyingFromUI(); }, { passive:false });
-    jumpButton.addEventListener('touchend',   (e) => { e.preventDefault(); stopFlyingFromUI();  }, { passive:false });
-    jumpButton.addEventListener('mousedown',  () => startFlyingFromUI());
-    jumpButton.addEventListener('mouseup',    () => stopFlyingFromUI());
-    jumpButton.addEventListener('mouseleave', () => stopFlyingFromUI());
-
-    shootButton.addEventListener('touchstart', (e) => { e.preventDefault(); if (window.currentScreen === "GAME") window.triggerPlayerShoot?.(); }, { passive:false });
-    shootButton.addEventListener('mousedown', () => { if (window.currentScreen === "GAME") window.triggerPlayerShoot?.(); });
-
-    // Prevent page from scrolling on spacebar while playing/modals closed
-    window.addEventListener('keydown', (e) => {
-      if (e.key === " " && playerNameInputModal.style.display === "none" && scoreboardModal.style.display === "none") {
-        e.preventDefault();
-      }
-    }, { passive:false });
-
-    // Start screen buttons visible by default
-    window.showMainMenuButtons(true);
-  </script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initial UI setup managed by p5.js draw loop and Firebase auth state changes.
+        });
+    </script>
 </body>
 </html>
