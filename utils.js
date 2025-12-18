@@ -35,38 +35,41 @@ export function isClearForSpawn(candidateRect, existingRects, padding = 0) {
 }
 
 export function drawFauxBanner(x, y, w, h, fillCol, strokeCol) {
-  // This intentionally avoids real-world extremist symbols.
+  // SAFETY: This intentionally avoids real-world extremist symbols.
   // It's a stylized, fictional “unit banner” with folds + a neutral emblem.
   const p = globalThis;
   if (!p || typeof p.push !== "function") return;
 
-  // Defensive defaults: never pass undefined into p5 color APIs.
-  const fallbackFill = (typeof p.color === "function") ? p.color(110, 0, 0) : "#6e0000";
-  const fallbackStroke = (typeof p.color === "function") ? p.color(0) : "#000000";
-  const safeFill = (fillCol == null) ? fallbackFill : fillCol;
-  const safeStroke = (strokeCol == null) ? fallbackStroke : strokeCol;
-
   p.push();
-  p.stroke(safeStroke);
+
+  // Defensive defaults: some call sites may pass undefined.
+  if (fillCol == null) {
+    try { fillCol = (typeof p.color === 'function') ? p.color(110, 0, 0) : 'rgb(110,0,0)'; } catch { fillCol = 'rgb(110,0,0)'; }
+  }
+  if (strokeCol == null) {
+    try { strokeCol = (typeof p.color === 'function') ? p.color(0) : 'rgb(0,0,0)'; } catch { strokeCol = 'rgb(0,0,0)'; }
+  }
+
+  p.stroke(strokeCol);
   p.strokeWeight(2);
 
   // Base cloth
-  p.fill(safeFill);
+  p.fill(fillCol);
   p.rect(x, y, w, h, 4);
 
-  // Folds / texture (stable; no per-frame randomness)
+  // Folds / texture
   p.noStroke();
   for (let i = 0; i < 6; i++) {
     const t = i / 5;
     const xx = x + t * w;
-    const shade = 18 + 22 * Math.sin((t * Math.PI) * 2);
-    p.fill(0, 0, 0, 14 + shade * 0.25);
+    const shade = 20 + 25 * Math.sin((t * Math.PI) * 2);
+    p.fill(0, 0, 0, 18 + shade * 0.25);
     p.rect(xx - 1, y + 2, 2, h - 4);
   }
 
   // Inner border
   p.noFill();
-  p.stroke(safeStroke);
+  p.stroke(strokeCol);
   p.strokeWeight(1.5);
   p.rect(x + 3, y + 3, w - 6, h - 6, 3);
 
@@ -101,7 +104,6 @@ export function drawFauxBanner(x, y, w, h, fillCol, strokeCol) {
 
   p.pop();
 }
-
 
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));

@@ -170,17 +170,11 @@ let C_BLOOD_RED; // New
 let C_BANNER_BG_RED, C_BANNER_SYMBOL_BLACK, C_BANNER_CIRCLE_WHITE; // New for banner
 
 // Global function for drawing faux banner
-function drawFauxBanner(x, y, w, h, fillCol = null, strokeCol = null) {
-  // Defensive defaults: some call sites pass only (x,y,w,h).
-  if (!fillCol) {
-    fillCol = (typeof C_BANNER_BG_RED !== "undefined" && C_BANNER_BG_RED) ? C_BANNER_BG_RED
-      : (typeof color === "function" ? color(110, 0, 0) : "#6e0000");
-  }
-  if (!strokeCol) {
-    strokeCol = (typeof C_BANNER_SYMBOL_BLACK !== "undefined" && C_BANNER_SYMBOL_BLACK) ? C_BANNER_SYMBOL_BLACK
-      : (typeof color === "function" ? color(0) : "#000000");
-  }
-  Utils.drawFauxBanner(x, y, w, h, fillCol, strokeCol);
+// Some call sites only pass (x,y,w,h). Default to banner palette to avoid p5 color errors.
+function drawFauxBanner(x, y, w, h, fillCol = C_BANNER_BG_RED, strokeCol = C_BANNER_SYMBOL_BLACK) {
+  const fc = fillCol ?? C_BANNER_BG_RED;
+  const sc = strokeCol ?? C_BANNER_SYMBOL_BLACK;
+  Utils.drawFauxBanner(x, y, w, h, fc, sc);
 }
 
 
