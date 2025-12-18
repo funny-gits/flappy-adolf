@@ -496,9 +496,10 @@ class BackgroundElement {
     if (this.type === 'static_wreck') {
       // Stable wreck tint
       this.wreckColor = rngBool(r, 0.5) ? C_ENEMY_DRONE : C_BOSS_TANK;
-      this.wheelXs = Array.from({ length: rngInt(r, 4, 6) }, (_, i, arr) => {
-        if (arr.length === 1) return 0;
-        return -this.w * 0.35 + (this.w * 0.70) * (i / (arr.length - 1));
+      const wheelCount = rngInt(r, 4, 6);
+      this.wheelXs = Array.from({ length: wheelCount }, (_, i) => {
+        if (wheelCount === 1) return 0;
+        return -this.w * 0.35 + (this.w * 0.70) * (i / (wheelCount - 1));
       });
       this.smokePuffs = Array.from({ length: rngInt(r, 1, 2) }, () => ({
         x: rngRange(r, -0.15, 0.15),
@@ -2584,4 +2585,3 @@ function onCanvasPointerUp(e) {
   try { e.preventDefault(); } catch (_) {}
   stopPlayerFlying();
 }
-
