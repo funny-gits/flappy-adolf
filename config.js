@@ -100,3 +100,8 @@ export function resolveAppId() {
 export function resolveInitialAuthToken() {
   return globalThis.__initial_auth_token || null;
 }
+
+
+export function getFirebaseConfig(){
+  return DEFAULT_FIREBASE_CONFIG;
+}
