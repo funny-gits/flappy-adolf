@@ -60,7 +60,7 @@ let jumpSound;
 let playerProjectileSound; // Renamed for clarity
 let enemyProjectileSound; // Renamed for clarity
 let objectDestroySound;
-let deathSound; // death / mission failed sting
+let deathSound; // Played on mission failed/game over
 let playerProjectiles = [];
 let enemyProjectiles = [];
 let enemies = [];
@@ -281,7 +281,7 @@ window.preload = function() {
   playerProjectileSound.setVolume(0.6);
   enemyProjectileSound.setVolume(0.6);
   objectDestroySound.setVolume(0.9);
-  deathSound.setVolume(0.9);
+  deathSound.setVolume(0.95);
   jumpSound.setLoop(false);
   playerProjectileSound.setLoop(false);
   enemyProjectileSound.setLoop(false);
@@ -501,9 +501,10 @@ class BackgroundElement {
     if (this.type === 'static_wreck') {
       // Stable wreck tint
       this.wreckColor = rngBool(r, 0.5) ? C_ENEMY_DRONE : C_BOSS_TANK;
-      this.wheelXs = Array.from({ length: rngInt(r, 4, 6) }, (_, i, arr) => {
-        if (arr.length === 1) return 0;
-        return -this.w * 0.35 + (this.w * 0.70) * (i / (arr.length - 1));
+      const wheelCount = rngInt(r, 4, 6);
+      this.wheelXs = Array.from({ length: wheelCount }, (_, i) => {
+        if (wheelCount === 1) return 0;
+        return -this.w * 0.35 + (this.w * 0.70) * (i / (wheelCount - 1));
       });
       this.smokePuffs = Array.from({ length: rngInt(r, 1, 2) }, () => ({
         x: rngRange(r, -0.15, 0.15),
@@ -910,6 +911,7 @@ window.resetGameValues = function() {
   
   scoreboardDisplayedAfterGameOver = false;
   deathSoundPlayed = false;
+  try { if (deathSound && deathSound.isPlaying && deathSound.isPlaying()) deathSound.stop(); } catch (e) {}
   gameWin = false; // Reset game win flag
 
   backgroundElements = []; 
@@ -2447,14 +2449,11 @@ window.draw = function() {
     if(typeof window.showGameOverButtons === 'function') window.showGameOverButtons(false);
     if(typeof window.showInGameControls === 'function') window.showInGameControls(true);
   } else if (window.currentScreen === "GAME_OVER") {
-
-// Play death sting once when entering game over screen.
-if (!deathSoundPlayed) {
-  deathSoundPlayed = true;
-  try { if (bgMusic && bgMusic.isPlaying && bgMusic.isPlaying()) bgMusic.stop(); } catch (_) {}
-  try { if (deathSound && deathSound.isLoaded && deathSound.isLoaded()) deathSound.play(); } catch (_) {}
-}
-
+    if (!deathSoundPlayed) {
+      deathSoundPlayed = true;
+      try { if (bgMusic && bgMusic.isPlaying && bgMusic.isPlaying()) bgMusic.stop(); } catch (e) {}
+      try { if (deathSound && deathSound.isLoaded && deathSound.isLoaded()) deathSound.play(); } catch (e) {}
+    }
     drawGameOverScreen();
     if(typeof window.showMainMenuButtons === 'function') window.showMainMenuButtons(false);
     if(typeof window.showGameOverButtons === 'function') window.showGameOverButtons(true);
@@ -2598,4 +2597,3 @@ function onCanvasPointerUp(e) {
   try { e.preventDefault(); } catch (_) {}
   stopPlayerFlying();
 }
-
