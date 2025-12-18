@@ -496,7 +496,7 @@
         });
          jumpButton.addEventListener('mouseleave', () => {
             if (window.currentScreen === "GAME") {
-                if (playerIsFlying && typeof window.stopPlayerFlying === 'function') window.stopPlayerFlying();
+                if (typeof window.stopPlayerFlying === 'function') window.stopPlayerFlying();
             }
         });
 
