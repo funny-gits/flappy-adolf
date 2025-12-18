@@ -582,7 +582,7 @@ function updateGameLogic() {
         if (type === "TURRET") { spawnY = p5Instance.random() < 0.5 ? 30 : Config.SCREEN_HEIGHT - Config.GROUND_Y_OFFSET - enemyH - 30; }
         else { spawnY = p5Instance.random(enemyH, Config.SCREEN_HEIGHT - Config.GROUND_Y_OFFSET - enemyH * 1.5); }
         attempts++;
-        if (isClearForSpawn(spawnX, spawnY, enemyW, enemyH)) {// Use Utils.isClearForSpawn
+      + if (Utils.isClearForSpawn(spawnX, spawnY, enemyW, enemyH, obstacles, enemies)) {
             enemies.push(new Enemy(spawnX, spawnY, type)); successfullySpawned = true; break;
         }
     } while (attempts < Config.MAX_ENEMY_SPAWN_ATTEMPTS);
@@ -707,5 +707,6 @@ window.mousePressed = function () { if (window.currentScreen === "GAME" && p5Ins
 
 // Note: collideRectRect and collideRectCircle are moved to utils.js
 // isClearForSpawn is also moved to utils.js (or will be part of enemy spawning logic more directly)
+
 
 
