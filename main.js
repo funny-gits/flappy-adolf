@@ -60,6 +60,7 @@ let jumpSound;
 let playerProjectileSound; // Renamed for clarity
 let enemyProjectileSound; // Renamed for clarity
 let objectDestroySound;
+let deathSound; // death / mission failed sting
 let playerProjectiles = [];
 let enemyProjectiles = [];
 let enemies = [];
@@ -115,6 +116,7 @@ window.playerName = "Player"; // Default player name, exposed to window
 
 // --- Flag for Scoreboard Display ---
 let scoreboardDisplayedAfterGameOver = false;
+let deathSoundPlayed = false;
 
 // --- Firebase Variables (Moved to global scope) ---
 let db;
@@ -271,6 +273,7 @@ window.preload = function() {
   playerProjectileSound = loadSound('assets/player_projectile.mp3'); // Renamed
   enemyProjectileSound = loadSound('assets/projectile.mp3'); // Renamed
   objectDestroySound = loadSound('assets/object_destroy.mp3');
+  deathSound = loadSound('assets/death.mp3');
 
   bgMusic.setVolume(0.4);
   bgMusic.setLoop(true);
@@ -278,10 +281,12 @@ window.preload = function() {
   playerProjectileSound.setVolume(0.6);
   enemyProjectileSound.setVolume(0.6);
   objectDestroySound.setVolume(0.9);
+  deathSound.setVolume(0.9);
   jumpSound.setLoop(false);
   playerProjectileSound.setLoop(false);
   enemyProjectileSound.setLoop(false);
   objectDestroySound.setLoop(false);
+  deathSound.setLoop(false);
 }
 
 // --- Background Element Class ---
@@ -771,10 +776,6 @@ let bgOffset1 = 0;
 window.setup = function() {
   console.log("p5.js setup() called!");
   let canvas = createCanvas(SCREEN_WIDTH, SCREEN_HEIGHT);
-  // Expose internal game resolution to the page so CSS scaling can fit the viewport.
-  window.__GAME_SIZE__ = { w: SCREEN_WIDTH, h: SCREEN_HEIGHT };
-  try { if (typeof window.applyGameViewportScale === 'function') window.applyGameViewportScale(); } catch (_) {}
-
 
   // Mobile-friendly: prevent scrolling/zoom on the canvas and support tap controls.
   try {
@@ -908,6 +909,7 @@ window.resetGameValues = function() {
   gameElapsedTime = 0;
   
   scoreboardDisplayedAfterGameOver = false;
+  deathSoundPlayed = false;
   gameWin = false; // Reset game win flag
 
   backgroundElements = []; 
@@ -2445,6 +2447,14 @@ window.draw = function() {
     if(typeof window.showGameOverButtons === 'function') window.showGameOverButtons(false);
     if(typeof window.showInGameControls === 'function') window.showInGameControls(true);
   } else if (window.currentScreen === "GAME_OVER") {
+
+// Play death sting once when entering game over screen.
+if (!deathSoundPlayed) {
+  deathSoundPlayed = true;
+  try { if (bgMusic && bgMusic.isPlaying && bgMusic.isPlaying()) bgMusic.stop(); } catch (_) {}
+  try { if (deathSound && deathSound.isLoaded && deathSound.isLoaded()) deathSound.play(); } catch (_) {}
+}
+
     drawGameOverScreen();
     if(typeof window.showMainMenuButtons === 'function') window.showMainMenuButtons(false);
     if(typeof window.showGameOverButtons === 'function') window.showGameOverButtons(true);
