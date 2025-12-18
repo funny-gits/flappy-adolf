@@ -163,52 +163,43 @@ window.setup = function () {
     Config.SCREEN_WIDTH + "px"
   );
 
-  try {
-    const app = initializeApp(firebaseConfig);
-    try {
-+    if (!firebaseConfig || typeof firebaseConfig !== "object") {
-+      throw new Error("Firebase disabled: missing firebaseConfig options");
-+    }
-+    const app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    auth = getAuth(app);
-
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        userId = user.uid;
-        console.log("Firebase: User signed in with UID:", userId);
-      } else {
-        try {
-          if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } else {
-            await signInAnonymously(auth);
-          }
-          if (auth.currentUser) {
-            userId = auth.currentUser.uid;
-            console.log("Firebase: Signed in anonymously/custom. UID:", userId);
-          } else {
-            console.error("Firebase: auth.currentUser is null after sign-in attempts.");
-            userId = crypto.randomUUID();
-            console.warn("Firebase: Falling back to random UUID for userId:", userId);
-          }
-        } catch (error) {
-          console.error("Firebase: Authentication failed:", error);
-          userId = crypto.randomUUID();
-          console.warn("Firebase: Falling back to random UUID for userId:", userId);
-        }
-      }
-      isAuthReady = true;
-      if (typeof window.loadHighScores === "function") window.loadHighScores();
-      if (typeof window.loadPlayerName === "function") window.loadPlayerName();
-    });
-  } catch (e) {
-    console.error("Firebase initialization error:", e);
-    isAuthReady = false;
-    if (typeof window.loadPlayerName === "function") window.loadPlayerName();
-    if (typeof window.showNameInput === "function") window.showNameInput(true);
+ // --- Firebase init (SAFE on GitHub Pages) ---
+try {
+  if (!firebaseConfig || typeof firebaseConfig !== "object") {
+    throw new Error("Firebase disabled: missing config");
   }
 
+  const app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  auth = getAuth(app);
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      userId = user.uid;
+    } else {
+      try {
+        if (typeof window.__initial_auth_token !== "undefined" && window.__initial_auth_token) {
+          await signInWithCustomToken(auth, window.__initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+        userId = auth.currentUser?.uid ?? crypto.randomUUID();
+      } catch (err) {
+        console.warn("Firebase auth failed, using local user ID", err);
+        userId = crypto.randomUUID();
+      }
+    }
+
+    isAuthReady = true;
+    window.loadHighScores?.();
+    window.loadPlayerName?.();
+  });
+
+} catch (err) {
+  console.warn("Firebase disabled, running offline:", err);
+  isAuthReady = false;
+  window.loadPlayerName?.();
+}
   if (bgMusic && bgMusic.isLoaded() && !bgMusic.isPlaying()) {
     bgMusic.loop();
   } else if (bgMusic) {
@@ -716,4 +707,5 @@ window.mousePressed = function () { if (window.currentScreen === "GAME" && p5Ins
 
 // Note: collideRectRect and collideRectCircle are moved to utils.js
 // isClearForSpawn is also moved to utils.js (or will be part of enemy spawning logic more directly)
+
 
