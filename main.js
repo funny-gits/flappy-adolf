@@ -54,7 +54,21 @@ let scoreboardDisplayedAfterGameOver = false;
 let db, auth, userId = "anonymous", isAuthReady = false;
 // Firebase config is now imported from config.js
 const appId = typeof __app_id !== "undefined" ? __app_id : Config.DEFAULT_APP_ID;
-const firebaseConfig = typeof __firebase_config !== "undefined" ? JSON.parse(__firebase_config) : Config.DEFAULT_FIREBASE_CONFIG;
+--- a/main.js
++++ b/main.js
+@@
+-const firebaseConfig = typeof __firebase_config !== "undefined" ... JSON.parse(__firebase_config) : Config.DEFAULT_FIREBASE_CONFIG;
++let firebaseConfig = Config.DEFAULT_FIREBASE_CONFIG;
++try {
++  // These globals exist on some Firebase hosting environments, but NOT on GitHub Pages.
++  if (typeof window.__firebase_config !== "undefined" && window.__firebase_config) {
++    firebaseConfig = JSON.parse(window.__firebase_config);
++  }
++} catch (e) {
++  console.warn("Firebase: failed to parse __firebase_config, using defaults.", e);
++  firebaseConfig = Config.DEFAULT_FIREBASE_CONFIG;
++}
+
 
 // --- p5.js Instance Variable ---
 // This will hold the p5 instance, useful for passing to module functions that need it.
@@ -151,6 +165,11 @@ window.setup = function () {
 
   try {
     const app = initializeApp(firebaseConfig);
+    try {
++    if (!firebaseConfig || typeof firebaseConfig !== "object") {
++      throw new Error("Firebase disabled: missing firebaseConfig options");
++    }
++    const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
 
@@ -492,7 +511,26 @@ class Particle {
 
 // --- Main Game Logic Functions ---
 function createExplosion(x,y,count,baseColor,minLifetimeMs,maxLifetimeMs){for(let i=0;i<count;i++){let a=p5Instance.random(p5Instance.TWO_PI);let s=p5Instance.random(1,6);let v=p5Instance.createVector(p5Instance.cos(a)*s,p5Instance.sin(a)*s);let pT=p5Instance.random();let pC=Array.isArray(baseColor)?baseColor[p5Instance.floor(p5Instance.random(baseColor.length))]:baseColor;let l=p5Instance.random(minLifetimeMs,maxLifetimeMs);let sz=p5Instance.random(3,10);if(pT<0.7){particles.push(new Particle(x+p5Instance.random(-5,5),y+p5Instance.random(-5,5),pC,sz,l,v,0.9));}else{let sC=p5Instance.lerpColor(pC||p5Instance.color(100),p5Instance.color(80,80,80),p5Instance.random(0.2,0.6));particles.push(new Particle(x+p5Instance.random(-5,5),y+p5Instance.random(-5,5),sC,sz*p5Instance.random(0.5,0.8),l*0.8,v.mult(p5Instance.random(1.2,1.8)),0.98,'rect'));}}}
-
++function isClearForSpawn(x, y, w, h) {
++  // Keep spawns from overlapping existing obstacles/enemies.
++  // Uses module-scoped arrays, so it MUST live in main.js (not utils.js).
++  const pad = 16;
++  const rx = x - pad, ry = y - pad, rw = w + pad * 2, rh = h + pad * 2;
++
++  if (Array.isArray(obstacles)) {
++    for (const o of obstacles) {
++      if (!o) continue;
++      if (Utils.collideRectRect(rx, ry, rw, rh, o.x, o.y, o.w, o.h)) return false;
++    }
++  }
++  if (Array.isArray(enemies)) {
++    for (const e of enemies) {
++      if (!e) continue;
++      if (Utils.collideRectRect(rx, ry, rw, rh, e.x, e.y, e.w, e.h)) return false;
++    }
++  }
++  return true;
++}
 function updateGameLogic() {
   if (window.currentScreen !== "GAME" || gamePaused) return;
   gameElapsedTime = p5Instance.millis() - gameStartTime;
@@ -553,7 +591,7 @@ function updateGameLogic() {
         if (type === "TURRET") { spawnY = p5Instance.random() < 0.5 ? 30 : Config.SCREEN_HEIGHT - Config.GROUND_Y_OFFSET - enemyH - 30; }
         else { spawnY = p5Instance.random(enemyH, Config.SCREEN_HEIGHT - Config.GROUND_Y_OFFSET - enemyH * 1.5); }
         attempts++;
-        if (Utils.isClearForSpawn(spawnX, spawnY, enemyW, enemyH)) { // Use Utils.isClearForSpawn
+        if (isClearForSpawn(spawnX, spawnY, enemyW, enemyH)) {// Use Utils.isClearForSpawn
             enemies.push(new Enemy(spawnX, spawnY, type)); successfullySpawned = true; break;
         }
     } while (attempts < Config.MAX_ENEMY_SPAWN_ATTEMPTS);
@@ -678,3 +716,4 @@ window.mousePressed = function () { if (window.currentScreen === "GAME" && p5Ins
 
 // Note: collideRectRect and collideRectCircle are moved to utils.js
 // isClearForSpawn is also moved to utils.js (or will be part of enemy spawning logic more directly)
+
